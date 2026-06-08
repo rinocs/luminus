@@ -1,0 +1,40 @@
+services:
+  app:
+    build:
+      context: .
+      target: dev
+    ports:
+      - "${APP_PORT:-8080}:80"
+    volumes:
+      - .:/var/www/html
+    environment:
+      APP_ENV: development
+      APP_DEBUG: "true"
+    working_dir: /var/www/html
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "${NGINX_PORT:-8081}:80"
+    volumes:
+      - .:/var/www/html
+      - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - app
+    profiles:
+      - prod
+
+  db:
+    image: mariadb:11
+    ports:
+      - "${DB_PORT:-3306}:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: "${DB_PASSWORD:-secret}"
+      MYSQL_DATABASE: "${DB_DATABASE:-luminus}"
+    volumes:
+      - db_data:/var/lib/mysql
+    profiles:
+      - db
+
+volumes:
+  db_data:

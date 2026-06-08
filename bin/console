@@ -1,0 +1,48 @@
+#!/usr/bin/env php
+<?php
+
+require __DIR__ . '/../vendor/autoload.php';
+
+$app = new Luminus\App();
+$app->loadEnv();
+$app->loadConfig(require __DIR__ . '/../config/app.php');
+
+$container = $app->getContainer();
+
+echo "╔══════════════════════════════════╗\n";
+echo "║  Luminus Console                 ║\n";
+echo "║  Type PHP expressions or exit()  ║\n";
+echo "╚══════════════════════════════════╝\n\n";
+
+echo "Available: \$app, \$container\n\n";
+
+if ($argc > 1) {
+    $code = $argv[1];
+    $result = eval($code);
+    if ($result !== null) {
+        echo var_export($result, true) . "\n";
+    }
+    exit;
+}
+
+while (true) {
+    $line = readline('luminus> ');
+
+    if ($line === false || trim($line) === 'exit' || trim($line) === 'quit') {
+        break;
+    }
+
+    if (trim($line) === '') {
+        continue;
+    }
+
+    try {
+        $result = eval($line);
+
+        if ($result !== null) {
+            echo var_export($result, true) . "\n";
+        }
+    } catch (\Throwable $e) {
+        echo "Error: {$e->getMessage()}\n";
+    }
+}

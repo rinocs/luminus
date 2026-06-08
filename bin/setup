@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "=== Luminus setup ==="
+
+if [ ! -f .env ]; then
+    cp .env.example .env
+    echo "Created .env from .env.example"
+fi
+
+echo "Installing dependencies..."
+composer dump-autoload
+
+echo "Creating storage directories..."
+mkdir -p storage/framework storage/logs storage/sessions
+chmod -R 775 storage
+
+echo ""
+echo "=== Done ==="
+echo "Run: make dev"
+echo "Or: php -S localhost:8080 -t public public/router.php"

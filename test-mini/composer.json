@@ -1,0 +1,16 @@
+{
+    "name": "luminus/test-mini",
+    "type": "project",
+    "require": {
+        "php": ">=8.2"
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "app/",
+            "Luminus\\": "src/"
+        },
+        "files": [
+            "src/helpers.php"
+        ]
+    }
+}

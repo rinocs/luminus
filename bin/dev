@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PORT="${1:-8080}"
+HOST="${2:-localhost}"
+
+echo "=== Luminus dev server ==="
+echo "Listening on http://${HOST}:${PORT}"
+echo ""
+
+php -S "${HOST}:${PORT}" -t public public/router.php

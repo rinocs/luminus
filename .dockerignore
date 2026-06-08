@@ -1,0 +1,9 @@
+.git
+.gitignore
+.env
+vendor/
+storage/framework/
+storage/logs/*.log
+docker-compose.yml
+*.md
+example/
