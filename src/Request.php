@@ -62,6 +62,11 @@ class Request
         return $this->body[$key] ?? $default;
     }
 
+    public function cookie(string $key, mixed $default = null): mixed
+    {
+        return $this->cookies[$key] ?? $default;
+    }
+
     public function all(): array
     {
         return array_merge($this->query, $this->body);

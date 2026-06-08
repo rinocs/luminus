@@ -1,8 +1,8 @@
 <?php $this->layout('layouts.main') ?>
 
 <?php $this->section('content') ?>
-<h1><?= $title ?></h1>
-<p><?= $description ?></p>
+<h1><?= e($title) ?></h1>
+<p><?= e($description) ?></p>
 
 <h2>Why?</h2>
 <p>

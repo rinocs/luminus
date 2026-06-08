@@ -17,3 +17,63 @@ if (!function_exists('env')) {
         };
     }
 }
+
+if (!function_exists('e')) {
+    /**
+     * Escape HTML special characters in a string securely.
+     */
+    function e(mixed $value, bool $doubleEncode = true): string
+    {
+        if ($value === null) {
+            return '';
+        }
+
+        if (is_scalar($value) || (is_object($value) && method_exists($value, '__toString'))) {
+            return htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8', $doubleEncode);
+        }
+
+        return '';
+    }
+}
+
+if (!function_exists('csrf_token')) {
+    /**
+     * Get the active CSRF token.
+     */
+    function csrf_token(): string
+    {
+        return \Luminus\Session::token();
+    }
+}
+
+if (!function_exists('csrf_field')) {
+    /**
+     * Generate a CSRF HTML hidden input field.
+     */
+    function csrf_field(): string
+    {
+        return '<input type="hidden" name="_token" value="' . csrf_token() . '">';
+    }
+}
+
+if (!function_exists('session')) {
+    /**
+     * Get or set session values.
+     */
+    function session(string|array|null $key = null, mixed $default = null): mixed
+    {
+        if ($key === null) {
+            return null;
+        }
+
+        if (is_array($key)) {
+            foreach ($key as $k => $v) {
+                \Luminus\Session::put($k, $v);
+            }
+            return null;
+        }
+
+        return \Luminus\Session::get($key, $default);
+    }
+}
+

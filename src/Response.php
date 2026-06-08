@@ -6,6 +6,7 @@ class Response
 {
     private int $statusCode = 200;
     private array $headers = [];
+    private array $cookies = [];
     private string $body = '';
     private ?string $redirectUrl = null;
 
@@ -42,8 +43,48 @@ class Response
         return $this;
     }
 
+    public function cookie(
+        string $name,
+        string $value = '',
+        int $expires = 0,
+        string $path = '/',
+        string $domain = '',
+        bool $secure = false,
+        bool $httpOnly = true,
+        string $sameSite = 'Lax'
+    ): static {
+        $this->cookies[$name] = [
+            'name' => $name,
+            'value' => $value,
+            'expires' => $expires,
+            'path' => $path,
+            'domain' => $domain,
+            'secure' => $secure,
+            'httpOnly' => $httpOnly,
+            'sameSite' => $sameSite,
+        ];
+        return $this;
+    }
+
     public function send(): void
     {
+        if (php_sapi_name() !== 'cli' && !headers_sent()) {
+            foreach ($this->cookies as $cookie) {
+                setcookie(
+                    $cookie['name'],
+                    $cookie['value'],
+                    [
+                        'expires' => $cookie['expires'],
+                        'path' => $cookie['path'],
+                        'domain' => $cookie['domain'],
+                        'secure' => $cookie['secure'],
+                        'httponly' => $cookie['httpOnly'],
+                        'samesite' => $cookie['sameSite'],
+                    ]
+                );
+            }
+        }
+
         if ($this->redirectUrl !== null) {
             http_response_code($this->statusCode);
             header("Location: {$this->redirectUrl}");

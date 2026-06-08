@@ -5,7 +5,8 @@
     "autoload": {
         "psr-4": {
             "Luminus\\": "src/",
-            "Example\\": "example/"
+            "Example\\": "example/",
+        "Portfolio\\": "portfolio/"
         },
         "files": [
             "src/helpers.php"
