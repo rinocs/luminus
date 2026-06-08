@@ -34,6 +34,7 @@ nav:
   - Container: container.md
   - Database: database.md
   - Async: async.md
+  - Security: security.md
   - Docker & Deploy: docker-deploy.md
   - CLI: cli.md
 

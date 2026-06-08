@@ -23,15 +23,19 @@ src/
   View.php             # Template engine
   Database.php         # PDO wrapper
   QueryBuilder.php     # Fluent query builder
-   Middleware.php       # Middleware interface
-   Async.php            # Fiber-based concurrency
-   helpers.php          # env() function
+    Middleware.php       # Middleware interface
+    Async.php            # Fiber-based concurrency
+    helpers.php          # env(), e(), csrf_token(), csrf_field(), session() helpers
+    Session.php          # Secure session manager
+    StartSessionMiddleware.php # Session bootstrap middleware
+    CsrfMiddleware.php   # CSRF protection middleware
+    SecurityHeadersMiddleware.php # Security headers middleware
 config/app.php         # Configuration
 routes/web.php         # Route definitions
 views/                 # PHP templates
 ```
 
-~800 lines total.
+~1200 lines total.
 
 ## Docs
 
@@ -44,6 +48,7 @@ views/                 # PHP templates
 | [container.md](container.md) | DI container, autowiring, binding |
 | [database.md](database.md) | PDO wrapper, query builder, transactions |
 | [async.md](async.md) | Fibers, concurrent HTTP, parallel tasks |
+| [security.md](security.md) | CSRF protection, HTML output escaping, and security headers |
 | [docker-deploy.md](docker-deploy.md) | Docker, compose, Makefile, production |
 | [cli.md](cli.md) | Console REPL, dev server, scripts |
 
@@ -65,6 +70,9 @@ make dev      # or: bin/dev
 | Response | `src/Response.php` | Status, headers, JSON, redirect |
 | View | `src/View.php` | Templates with layouts and sections |
 | Middleware | `src/Middleware.php` | Middleware interface (PSR-15-like) |
+| Session | `src/Session.php` | Secure session & flash data manager |
+| CsrfMiddleware | `src/CsrfMiddleware.php` | CSRF token validation middleware |
+| SecurityHeadersMiddleware | `src/SecurityHeadersMiddleware.php` | HTTP security headers middleware |
 | Database | `src/Database.php` | PDO wrapper, transactions |
 | QueryBuilder | `src/QueryBuilder.php` | Fluent SELECT/INSERT/UPDATE/DELETE |
 | Async | `src/Async.php` | Fibers, concurrent HTTP, task collection |

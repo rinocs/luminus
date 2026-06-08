@@ -12,8 +12,9 @@ Minimal PHP framework — zero external dependencies. PHP 8.2+.
 - Fiber-based async for concurrent operations
 - Fluent query builder for PDO
 - Error handling with debug/production modes
+- Security: Session & Flash manager, CSRF middleware, global XSS escaping helper, and browser security headers
 - Docker + Nginx + PHP-FPM production-ready
-- ~800 lines of core code
+- ~1200 lines of core code
 
 ## Create a new app
 
@@ -77,7 +78,11 @@ src/                   # Framework core (Luminus\)
    QueryBuilder.php     # Fluent query builder
    Middleware.php       # Middleware interface
    Async.php            # Fiber-based concurrency
-   helpers.php          # env() function
+   helpers.php          # env(), e(), csrf_token(), csrf_field(), session() helpers
+   Session.php          # Secure session manager
+   StartSessionMiddleware.php # Session bootstrap middleware
+   CsrfMiddleware.php   # CSRF protection middleware
+   SecurityHeadersMiddleware.php # Security headers middleware
 config/app.php         # Configuration
 routes/web.php         # Route definitions
 views/                 # PHP templates
@@ -188,6 +193,50 @@ $responses = Async::httpGet([
 $app->config('debug');     // true
 $app->config('database');  // array
 env('APP_ENV', 'production');
+```
+
+## Security
+
+Luminus provides built-in, lightweight security measures:
+
+### Output Escaping (XSS Protection)
+
+Use the global `e()` helper in your views to escape variable outputs:
+
+```php
+<h1><?= e($title) ?></h1>
+```
+
+### CSRF Protection & Sessions
+
+Enable CSRF protection and session management by registering the middlewares on the Router:
+
+```php
+use Luminus\StartSessionMiddleware;
+use Luminus\CsrfMiddleware;
+
+// Start session must run first
+$router->addMiddleware(new StartSessionMiddleware());
+$router->addMiddleware(new CsrfMiddleware(except: ['/api/*']));
+```
+
+In your forms, include the hidden CSRF input using `csrf_field()`:
+
+```html
+<form method="POST" action="/submit">
+    <?= csrf_field() ?>
+    <button type="submit">Submit</button>
+</form>
+```
+
+### Security Headers
+
+Enforce defense-in-depth headers (Clickjacking, MIME sniffing, and Referrer policy defense):
+
+```php
+use Luminus\SecurityHeadersMiddleware;
+
+$router->addMiddleware(new SecurityHeadersMiddleware());
 ```
 
 ## License
