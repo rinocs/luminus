@@ -1,6 +1,7 @@
 .env
 vendor/
 .phpunit.cache/
+site/
 storage/framework/*
 storage/logs/*
 storage/sessions/*
