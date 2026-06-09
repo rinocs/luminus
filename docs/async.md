@@ -1,10 +1,16 @@
 # Async
 
-Fiber-based concurrency (PHP 8.1+). No external dependencies.
+Fiber-based task helpers (PHP 8.1+). No external dependencies.
 
-## Parallel execution
+> **Important:** Fibers are *cooperative*. A task only yields control if it
+> calls `Fiber::suspend()` — plain blocking calls (PDO queries, `file_get_contents`,
+> `sleep`) run to completion before the next task starts. `Async::all()` with
+> blocking callbacks executes them **sequentially**. For truly concurrent I/O,
+> use `Async::httpGet()`, which is backed by `curl_multi`.
 
-Run multiple independent tasks concurrently:
+## Grouping tasks
+
+Run a set of tasks and collect their results under the same keys:
 
 ```php
 use Luminus\Async;
@@ -18,11 +24,13 @@ $results = Async::all([
 echo $results['count']; // int
 ```
 
-Each task runs in a Fiber. Results are collected in the same order.
+Each task runs in a Fiber. With blocking callbacks like the ones above the
+tasks run one after another — use this for structuring code, not for speed.
+Tasks that call `Fiber::suspend()` will interleave.
 
 ## Collection mapping
 
-Process items concurrently:
+Map a callback over items, collecting results:
 
 ```php
 $uppercased = Async::collect(
@@ -33,7 +41,8 @@ $uppercased = Async::collect(
 
 ## Concurrent HTTP requests
 
-Uses `curl_multi_exec` for true I/O concurrency:
+Uses `curl_multi_exec` for true I/O concurrency — all requests are in flight
+at the same time:
 
 ```php
 $responses = Async::httpGet([
@@ -56,19 +65,19 @@ $responses = Async::httpGet(
 
 ```php
 $fiber = Async::run(function () {
-    $result = expensiveOperation();
-    return $result;
+    // runs immediately, up to the first Fiber::suspend()
+    return expensiveOperation();
 });
 
-// ... do other work ...
-
 $result = Async::await($fiber);
+
+// Deferred: nothing runs until you wait for it
+$fiber = Async::deferred(fn() => expensiveOperation());
+$result = Async::wait($fiber); // starts and drives the fiber
 ```
 
 ## When to use async
 
-- Multiple independent database queries
-- Multiple HTTP API calls
-- Parallel I/O operations where order doesn't matter
-
-Queries still block individually. The gain comes from running them concurrently instead of sequentially.
+- Multiple HTTP API calls → `Async::httpGet()` (truly concurrent)
+- Structuring groups of related tasks → `Async::all()` / `Async::collect()`
+- Cooperative multitasking with custom suspension points → `Async::run()` / `await()`

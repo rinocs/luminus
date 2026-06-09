@@ -16,26 +16,33 @@ class View
 
     public function render(string $template, array $data = []): string
     {
+        // Save state so render() is re-entrant (partials rendered inside a
+        // template must not clobber the outer layout/sections).
+        $previousState = [$this->layout, $this->sections, $this->currentSection];
         $this->layout = null;
         $this->sections = [];
         $this->currentSection = '';
 
-        $content = $this->renderFile($template, $data);
+        try {
+            $content = $this->renderFile($template, $data);
 
-        if ($this->layout) {
-            if (empty($this->sections)) {
-                $this->sections['content'] = $content;
-            } elseif ($content !== '') {
-                if (isset($this->sections['content'])) {
-                    $this->sections['content'] = $content . $this->sections['content'];
-                } else {
+            if ($this->layout) {
+                if (empty($this->sections)) {
                     $this->sections['content'] = $content;
+                } elseif ($content !== '') {
+                    if (isset($this->sections['content'])) {
+                        $this->sections['content'] = $content . $this->sections['content'];
+                    } else {
+                        $this->sections['content'] = $content;
+                    }
                 }
+                return $this->renderFile($this->layout, $data);
             }
-            return $this->renderFile($this->layout, $data);
-        }
 
-        return $content;
+            return $content;
+        } finally {
+            [$this->layout, $this->sections, $this->currentSection] = $previousState;
+        }
     }
 
     public function layout(string $layout): void
@@ -73,9 +80,18 @@ class View
             throw new \RuntimeException("View [{$template}] not found: {$file}");
         }
 
-        extract($data);
+        $bufferLevel = ob_get_level();
+        extract($data, EXTR_SKIP);
         ob_start();
-        require $file;
-        return ob_get_clean();
+
+        try {
+            require $file;
+            return ob_get_clean();
+        } catch (\Throwable $e) {
+            while (ob_get_level() > $bufferLevel) {
+                ob_end_clean();
+            }
+            throw $e;
+        }
     }
 }

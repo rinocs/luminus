@@ -149,6 +149,57 @@ class QueryBuilderTest extends TestCase
         $this->assertSame('Alice', $row['name']);
     }
 
+    public function test_where_null_generates_is_null(): void
+    {
+        $capturedSql = '';
+        $this->db->method('query')->willReturnCallback(
+            function (string $sql) use (&$capturedSql) {
+                $capturedSql = $sql;
+                return [];
+            }
+        );
+
+        (new QueryBuilder($this->db, 'test'))->where('deleted_at', '=', null)->get();
+        $this->assertStringContainsString('`deleted_at` IS NULL', $capturedSql);
+
+        (new QueryBuilder($this->db, 'test'))->where('deleted_at', '!=', null)->get();
+        $this->assertStringContainsString('`deleted_at` IS NOT NULL', $capturedSql);
+    }
+
+    public function test_where_rejects_invalid_operator(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        (new QueryBuilder($this->db, 'test'))->where('id', '; DROP TABLE test', 1);
+    }
+
+    public function test_where_rejects_invalid_column(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        (new QueryBuilder($this->db, 'test'))->where('id; DROP TABLE test --', '=', 1);
+    }
+
+    public function test_order_by_rejects_invalid_direction(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        (new QueryBuilder($this->db, 'test'))->orderBy('name', 'DESC; DROP TABLE test');
+    }
+
+    public function test_count_does_not_mutate_columns(): void
+    {
+        $capturedSql = '';
+        $this->db->method('query')->willReturnCallback(
+            function (string $sql) use (&$capturedSql) {
+                $capturedSql = $sql;
+                return [['count' => 3]];
+            }
+        );
+
+        $builder = (new QueryBuilder($this->db, 'test'))->select(['name']);
+        $builder->count();
+        $builder->get();
+        $this->assertStringContainsString('SELECT name', $capturedSql);
+    }
+
     public function test_generated_sql_has_backtick_quoting(): void
     {
         $capturedSql = '';

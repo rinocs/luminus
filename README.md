@@ -9,7 +9,7 @@ Minimal PHP framework — zero external dependencies. PHP 8.2+.
 - Router with `{param}` patterns and auto-injection into handlers
 - Middleware pipeline (PSR-15-like interface)
 - Template engine with layouts and sections (plain PHP)
-- Fiber-based async for concurrent operations
+- Concurrent HTTP via curl_multi + Fiber-based task helpers
 - Fluent query builder for PDO
 - Error handling with debug/production modes
 - Security: Session & Flash manager, CSRF middleware, global XSS escaping helper, and browser security headers
@@ -42,7 +42,7 @@ make dev
 ## Documentation
 
 | Guide | Description |
-|---|---|---|
+|---|---|
 | [Getting started](docs/getting-started.md) | Setup, env, first route |
 | [Routing](docs/routing.md) | Patterns, handlers, controllers, middleware |
 | [Request & Response](docs/request-response.md) | Input, JSON, files, responses |
@@ -176,16 +176,20 @@ Middleware executes in registration order (first added = outermost).
 ## Async (PHP 8.1+ Fibers)
 
 ```php
+// Group tasks and collect results (sequential unless tasks suspend)
 $results = Async::all([
     'users' => fn() => $db->query('SELECT * FROM users'),
     'posts' => fn() => $db->query('SELECT * FROM posts'),
 ]);
 
+// Truly concurrent HTTP requests (curl_multi)
 $responses = Async::httpGet([
     'github' => 'https://api.github.com',
     'json' => 'https://jsonplaceholder.typicode.com/posts',
 ]);
 ```
+
+Note: Fibers are cooperative — blocking callbacks in `Async::all()` run sequentially. Use `Async::httpGet()` for concurrent I/O. See [docs/async.md](docs/async.md).
 
 ## Config
 

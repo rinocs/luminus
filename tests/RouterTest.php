@@ -84,11 +84,40 @@ class RouterTest extends TestCase
         $this->assertSame('404 Not Found', (string) $response);
     }
 
-    public function test_404_for_wrong_method(): void
+    public function test_405_for_wrong_method(): void
     {
         $this->router->get('/only-get', fn() => 'ok');
 
         $response = $this->dispatch('POST', '/only-get');
+        $this->assertSame(405, $response->getStatusCode());
+    }
+
+    public function test_head_request_matches_get_route(): void
+    {
+        $this->router->get('/page', fn() => 'ok');
+
+        $response = $this->dispatch('HEAD', '/page');
+        $this->assertSame(200, $response->getStatusCode());
+    }
+
+    public function test_dot_in_pattern_is_literal(): void
+    {
+        $this->router->get('/file.json', fn() => 'json');
+
+        $this->assertSame(200, $this->dispatch('GET', '/file.json')->getStatusCode());
+        $this->assertSame(404, $this->dispatch('GET', '/fileXjson')->getStatusCode());
+    }
+
+    public function test_middleware_runs_on_404(): void
+    {
+        $this->router->addMiddleware(new class implements Middleware {
+            public function handle(Request $request, callable $next): Response
+            {
+                return $next($request)->header('X-Always', 'yes');
+            }
+        });
+
+        $response = $this->dispatch('GET', '/nope');
         $this->assertSame(404, $response->getStatusCode());
     }
 

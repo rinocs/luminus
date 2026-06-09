@@ -22,6 +22,7 @@ class Session
                     'cookie_httponly' => true,
                     'cookie_secure' => $secure,
                     'cookie_samesite' => 'Lax',
+                    'use_strict_mode' => true,
                 ]);
             } else {
                 @session_start();
@@ -79,6 +80,18 @@ class Session
             $_SESSION['_token'] = bin2hex(random_bytes(32));
         }
         return $_SESSION['_token'];
+    }
+
+    /**
+     * Regenerate the session ID (call after login/privilege changes
+     * to prevent session fixation).
+     */
+    public static function regenerate(): void
+    {
+        self::start();
+        if (php_sapi_name() !== 'cli' && !headers_sent() && session_status() === PHP_SESSION_ACTIVE) {
+            session_regenerate_id(true);
+        }
     }
 
     /**

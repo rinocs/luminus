@@ -1,4 +1,0 @@
-vendor/
-.env
-storage/framework/
-storage/logs/*.log

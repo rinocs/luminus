@@ -32,7 +32,7 @@ class Response
     {
         $this->statusCode = $status;
         $this->headers['Content-Type'] = 'application/json';
-        $this->body = json_encode($data, JSON_UNESCAPED_UNICODE);
+        $this->body = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
         return $this;
     }
 
@@ -85,16 +85,15 @@ class Response
             }
         }
 
-        if ($this->redirectUrl !== null) {
-            http_response_code($this->statusCode);
-            header("Location: {$this->redirectUrl}");
-            return;
-        }
-
         http_response_code($this->statusCode);
 
         foreach ($this->headers as $name => $value) {
             header("{$name}: {$value}");
+        }
+
+        if ($this->redirectUrl !== null) {
+            header("Location: {$this->redirectUrl}");
+            return;
         }
 
         echo $this->body;

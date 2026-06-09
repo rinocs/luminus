@@ -1,7 +1,7 @@
 <?php
 
 return [
-    'debug' => env('APP_DEBUG', true),
+    'debug' => env('APP_DEBUG', false),
     'env' => env('APP_ENV', 'development'),
     'url' => env('APP_URL', 'http://localhost:8080'),
     'views_path' => __DIR__ . '/../views',

@@ -54,6 +54,30 @@ class RequestTest extends TestCase
         $this->assertSame('DELETE', $req->method());
     }
 
+    public function test_method_spoofing_restricted_to_put_patch_delete(): void
+    {
+        $req = new Request(
+            body: ['_method' => 'GET'],
+            server: ['REQUEST_METHOD' => 'POST'],
+        );
+        $this->assertSame('POST', $req->method());
+
+        $req = new Request(
+            body: ['_method' => ['DELETE']],
+            server: ['REQUEST_METHOD' => 'POST'],
+        );
+        $this->assertSame('POST', $req->method());
+    }
+
+    public function test_json_uses_injected_raw_body(): void
+    {
+        $req = new Request(
+            server: ['REQUEST_METHOD' => 'POST'],
+            rawBody: '{"name":"Alice"}',
+        );
+        $this->assertSame(['name' => 'Alice'], $req->json());
+    }
+
     public function test_path_normalizes_trailing_slash(): void
     {
         $req = new Request(

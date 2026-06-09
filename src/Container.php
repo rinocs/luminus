@@ -6,6 +6,7 @@ class Container
 {
     private array $bindings = [];
     private array $instances = [];
+    private array $resolving = [];
 
     public function set(string $id, mixed $resolver): void
     {
@@ -25,11 +26,22 @@ class Container
             return $this->instances[$id];
         }
 
-        if (isset($this->bindings[$id])) {
-            $resolver = $this->bindings[$id];
-            $instance = is_callable($resolver) ? $resolver($this) : $resolver;
-        } else {
-            $instance = $this->resolve($id);
+        if (isset($this->resolving[$id])) {
+            $chain = implode(' -> ', array_keys($this->resolving)) . " -> {$id}";
+            throw new \RuntimeException("Circular dependency detected: {$chain}");
+        }
+
+        $this->resolving[$id] = true;
+
+        try {
+            if (isset($this->bindings[$id])) {
+                $resolver = $this->bindings[$id];
+                $instance = $resolver instanceof \Closure ? $resolver($this) : $resolver;
+            } else {
+                $instance = $this->resolve($id);
+            }
+        } finally {
+            unset($this->resolving[$id]);
         }
 
         $this->instances[$id] = $instance;

@@ -13,12 +13,22 @@ class Async
 
     public static function await(\Fiber $fiber): mixed
     {
+        if (!$fiber->isStarted()) {
+            $fiber->start();
+        }
         while (!$fiber->isTerminated()) {
             $fiber->resume();
         }
         return $fiber->getReturn();
     }
 
+    /**
+     * Run tasks in Fibers and collect their results.
+     *
+     * Note: tasks only interleave if they call Fiber::suspend(); plain
+     * blocking callbacks (e.g. PDO queries) run sequentially. For truly
+     * concurrent I/O use httpGet(), which is backed by curl_multi.
+     */
     public static function all(array $tasks): array
     {
         $fibers = [];

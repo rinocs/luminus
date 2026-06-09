@@ -25,11 +25,31 @@ class QueryBuilder
         return $this;
     }
 
-    public function where(string $column, string $operator, mixed $value = null): static
+    private const OPERATORS = ['=', '!=', '<>', '<', '>', '<=', '>=', 'LIKE', 'NOT LIKE'];
+
+    public function where(string $column, mixed $operator = '=', mixed $value = null): static
     {
-        if ($value === null) {
+        if (func_num_args() === 2) {
             $value = $operator;
             $operator = '=';
+        }
+
+        $operator = strtoupper((string) $operator);
+
+        if (!in_array($operator, self::OPERATORS, true)) {
+            throw new \InvalidArgumentException("Unsupported operator: {$operator}");
+        }
+
+        $column = $this->quoteIdentifier($column);
+
+        if ($value === null) {
+            if (!in_array($operator, ['=', '!=', '<>'], true)) {
+                throw new \InvalidArgumentException(
+                    "NULL value not supported with operator: {$operator}"
+                );
+            }
+            $this->wheres[] = $column . ($operator === '=' ? ' IS NULL' : ' IS NOT NULL');
+            return $this;
         }
 
         $this->wheres[] = "{$column} {$operator} ?";
@@ -39,7 +59,13 @@ class QueryBuilder
 
     public function orderBy(string $column, string $direction = 'ASC'): static
     {
-        $this->orderBy = "{$column} {$direction}";
+        $direction = strtoupper($direction);
+
+        if (!in_array($direction, ['ASC', 'DESC'], true)) {
+            throw new \InvalidArgumentException("Invalid sort direction: {$direction}");
+        }
+
+        $this->orderBy = $this->quoteIdentifier($column) . " {$direction}";
         return $this;
     }
 
@@ -82,7 +108,10 @@ class QueryBuilder
 
     public function update(array $data): int
     {
-        $columns = implode(', ', array_map(fn($col) => "`{$col}` = ?", array_keys($data)));
+        $columns = implode(', ', array_map(
+            fn($col) => $this->quoteIdentifier($col) . ' = ?',
+            array_keys($data)
+        ));
         $sql = "UPDATE `{$this->table}` SET {$columns}";
 
         if (!empty($this->wheres)) {
@@ -105,9 +134,24 @@ class QueryBuilder
 
     public function count(): int
     {
+        $previousColumns = $this->columns;
         $this->columns = ['COUNT(*) as count'];
         $result = $this->get();
+        $this->columns = $previousColumns;
         return (int) ($result[0]['count'] ?? 0);
+    }
+
+    private function quoteIdentifier(string $identifier): string
+    {
+        $parts = explode('.', $identifier);
+
+        foreach ($parts as $part) {
+            if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $part)) {
+                throw new \InvalidArgumentException("Invalid identifier: {$identifier}");
+            }
+        }
+
+        return implode('.', array_map(fn($p) => "`{$p}`", $parts));
     }
 
     private function buildSelect(): string

@@ -9,6 +9,7 @@ class Request
     private array $files;
     private array $server;
     private array $cookies;
+    private ?string $rawBody;
     private ?array $json = null;
 
     public function __construct(
@@ -16,13 +17,15 @@ class Request
         ?array $body = null,
         ?array $files = null,
         ?array $server = null,
-        ?array $cookies = null
+        ?array $cookies = null,
+        ?string $rawBody = null
     ) {
         $this->query = $query ?? $_GET;
         $this->body = $body ?? $_POST;
         $this->files = $files ?? $_FILES;
         $this->server = $server ?? $_SERVER;
         $this->cookies = $cookies ?? $_COOKIE;
+        $this->rawBody = $rawBody;
     }
 
     public static function capture(): static
@@ -34,8 +37,16 @@ class Request
     {
         $method = strtoupper($this->server['REQUEST_METHOD'] ?? 'GET');
 
-        if ($method === 'POST' && $this->post('_method')) {
-            return strtoupper($this->post('_method'));
+        if ($method === 'POST') {
+            $override = $this->post('_method');
+
+            if (is_string($override)) {
+                $override = strtoupper($override);
+
+                if (in_array($override, ['PUT', 'PATCH', 'DELETE'], true)) {
+                    return $override;
+                }
+            }
         }
 
         return $method;
@@ -81,7 +92,7 @@ class Request
     public function json(): ?array
     {
         if ($this->json === null) {
-            $raw = file_get_contents('php://input');
+            $raw = $this->rawBody ?? file_get_contents('php://input');
             $this->json = $raw ? json_decode($raw, true) : null;
         }
         return $this->json;

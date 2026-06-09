@@ -4,13 +4,16 @@
     "type": "project",
     "autoload": {
         "psr-4": {
-            "Luminus\\": "src/",
-            "Example\\": "example/",
-        "Portfolio\\": "portfolio/"
+            "Luminus\\": "src/"
         },
         "files": [
             "src/helpers.php"
         ]
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Example\\": "example/"
+        }
     },
     "require": {
         "php": ">=8.2"

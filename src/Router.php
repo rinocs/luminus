@@ -49,8 +49,9 @@ class Router
 
     private function compilePattern(string $pattern): string
     {
-        $pattern = preg_replace('/\{(\w+)\}/', '(?P<$1>[^/]+)', $pattern);
-        return '#^' . $pattern . '$#';
+        $quoted = preg_quote($pattern, '#');
+        $quoted = preg_replace('/\\\\\{(\w+)\\\\\}/', '(?P<$1>[^/]+)', $quoted);
+        return '#^' . $quoted . '$#';
     }
 
     public function addMiddleware(Middleware $middleware): void
@@ -63,27 +64,35 @@ class Router
         $method = $request->method();
         $path = $request->path();
 
+        // HEAD requests are served by the matching GET route.
+        $lookupMethod = $method === 'HEAD' ? 'GET' : $method;
+
         $route = null;
         $params = [];
+        $allowedMethods = [];
 
         foreach ($this->routes as $r) {
-            if ($r['method'] !== $method) {
-                continue;
-            }
-
             if (preg_match($r['pattern'], $path, $matches)) {
-                $route = $r;
-                $params = array_filter($matches, 'is_string', ARRAY_FILTER_USE_KEY);
-                break;
+                if ($r['method'] === $lookupMethod) {
+                    $route = $r;
+                    $params = array_filter($matches, 'is_string', ARRAY_FILTER_USE_KEY);
+                    break;
+                }
+                $allowedMethods[] = $r['method'];
             }
         }
 
-        if ($route === null) {
-            $response = new Response();
-            return $response->status(404)->body('404 Not Found');
+        if ($route !== null) {
+            $handler = fn(Request $req) => $this->resolveHandler($route['handler'], $req, $params);
+        } elseif ($allowedMethods !== []) {
+            $allow = implode(', ', array_unique($allowedMethods));
+            $handler = fn(Request $req) => (new Response())
+                ->status(405)
+                ->header('Allow', $allow)
+                ->body('405 Method Not Allowed');
+        } else {
+            $handler = fn(Request $req) => (new Response())->status(404)->body('404 Not Found');
         }
-
-        $handler = fn(Request $req) => $this->resolveHandler($route['handler'], $req, $params);
 
         foreach (array_reverse($this->middleware) as $mw) {
             $handler = fn(Request $req) => $mw->handle($req, $handler);
@@ -148,8 +157,12 @@ class Router
                 $args[] = $params[$param->getName()];
             } elseif ($param->isDefaultValueAvailable()) {
                 $args[] = $param->getDefaultValue();
-            } else {
+            } elseif ($param->allowsNull()) {
                 $args[] = null;
+            } else {
+                throw new \RuntimeException(
+                    "Cannot resolve parameter \${$param->getName()} for route handler"
+                );
             }
         }
 

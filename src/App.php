@@ -84,12 +84,14 @@ class App
             $response = $router->dispatch($request);
             $response->send();
         } catch (\Throwable $e) {
+            error_log((string) $e);
+
             $debug = $this->config['debug'] ?? false;
 
             if ($debug) {
                 $body = '<h1>500 Internal Server Error</h1><pre>'
-                    . $e->getMessage() . "\n"
-                    . $e->getTraceAsString() . '</pre>';
+                    . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8') . "\n"
+                    . htmlspecialchars($e->getTraceAsString(), ENT_QUOTES, 'UTF-8') . '</pre>';
             } else {
                 $body = '<h1>500 Internal Server Error</h1>';
             }

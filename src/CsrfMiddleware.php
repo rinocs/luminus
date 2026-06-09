@@ -93,16 +93,18 @@ class CsrfMiddleware implements Middleware
      */
     protected function getTokenFromRequest(Request $request): ?string
     {
-        $token = $request->post('_token');
+        $candidates = [
+            $request->post('_token'),
+            $request->header('X-CSRF-TOKEN'),
+            $request->header('X-XSRF-TOKEN'),
+        ];
 
-        if (!$token) {
-            $token = $request->header('X-CSRF-TOKEN');
+        foreach ($candidates as $token) {
+            if (is_string($token) && $token !== '') {
+                return $token;
+            }
         }
 
-        if (!$token) {
-            $token = $request->header('X-XSRF-TOKEN');
-        }
-
-        return $token;
+        return null;
     }
 }
