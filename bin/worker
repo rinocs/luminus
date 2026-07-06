@@ -1,0 +1,36 @@
+#!/usr/bin/env php
+<?php
+
+require __DIR__ . '/../vendor/autoload.php';
+
+use Luminus\App;
+use Luminus\Queue\QueueManager;
+use Luminus\Queue\Worker;
+
+// Boot up the framework
+$app = new App();
+$app->loadEnv();
+
+$configPath = __DIR__ . '/../config/app.php';
+$queueConfigPath = __DIR__ . '/../config/queue.php';
+
+$appConfig = file_exists($configPath) ? require $configPath : [];
+$queueConfig = file_exists($queueConfigPath) ? require $queueConfigPath : [];
+
+$appConfig['queue'] = $queueConfig;
+
+$app->loadConfig($appConfig);
+
+// Initialize Queue Manager
+$queueManager = new QueueManager($app->getContainer(), $queueConfig);
+$app->getContainer()->set(QueueManager::class, $queueManager);
+
+$worker = new Worker($queueManager);
+
+// Parse arguments
+// php bin/worker <queue> <connection> <sleep>
+$queue = $argv[1] ?? 'default';
+$connection = $argv[2] ?? null;
+$sleep = (int)($argv[3] ?? 3);
+
+$worker->work($queue, $connection, $sleep);
