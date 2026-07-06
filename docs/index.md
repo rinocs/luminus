@@ -51,6 +51,7 @@ views/                 # PHP templates
 | [security.md](security.md) | CSRF protection, HTML output escaping, and security headers |
 | [docker-deploy.md](docker-deploy.md) | Docker, compose, Makefile, production |
 | [cli.md](cli.md) | Console REPL, dev server, scripts |
+| [queues.md](queues.md) | Background jobs, multiple drivers, CLI worker |
 
 ## Quick start
 
@@ -76,3 +77,6 @@ make dev      # or: bin/dev
 | Database | `src/Database.php` | PDO wrapper, transactions |
 | QueryBuilder | `src/QueryBuilder.php` | Fluent SELECT/INSERT/UPDATE/DELETE |
 | Async | `src/Async.php` | Fibers, concurrent HTTP, task collection |
+| QueueManager | `src/Queue/QueueManager.php` | Queue connection and job dispatching |
+| Job | `src/Queue/Job.php` | Abstract base class for queue jobs |
+| Worker | `src/Queue/Worker.php` | CLI worker for processing queue jobs |
