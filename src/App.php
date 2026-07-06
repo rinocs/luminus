@@ -33,6 +33,13 @@ class App
                 fn() => new Database($config['database'])
             );
         }
+
+        if (isset($config['queue'])) {
+            $this->container->singleton(
+                \Luminus\Queue\QueueManager::class,
+                fn(Container $c) => new \Luminus\Queue\QueueManager($c, $config['queue'])
+            );
+        }
     }
 
     public function loadEnv(string $path = __DIR__ . '/../.env'): void

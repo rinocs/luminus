@@ -13,8 +13,9 @@ Minimal PHP framework — zero external dependencies. PHP 8.2+.
 - Fluent query builder for PDO
 - Error handling with debug/production modes
 - Security: Session & Flash manager, CSRF middleware, global XSS escaping helper, and browser security headers
+- Background jobs & queues (database, redis, beanstalkd, sync)
 - Docker + Nginx + PHP-FPM production-ready
-- ~1200 lines of core code
+- ~1400 lines of core code
 
 ## Create a new app
 
@@ -49,6 +50,7 @@ make dev
 | [Views](docs/views.md) | Templates, layouts, sections |
 | [Container](docs/container.md) | Autowiring, singleton, binding |
 | [Database](docs/database.md) | PDO wrapper, query builder |
+| [Queues](docs/queues.md) | Background jobs, multiple drivers, CLI worker |
 | [Async](docs/async.md) | Fibers, concurrent HTTP, parallel tasks |
 | [Docker & deploy](docs/docker-deploy.md) | Docker, compose, Makefile |
 | [CLI](docs/cli.md) | Console, scripts, Makefile targets |
@@ -139,6 +141,41 @@ $db->query('SELECT * FROM users WHERE active = ?', [1]);
 $db->table('users')->where('email', '=', $email)->first();
 $db->table('posts')->insert(['title' => 'Hello', 'body' => '...']);
 $db->table('posts')->where('id', '=', 5)->delete();
+```
+
+## Jobs & Queues
+
+Luminus provides a unified, pluggable queue system supporting `sync`, `database`, `redis`, and `beanstalkd`.
+
+```php
+use Luminus\Queue\Job;
+
+class SendEmailJob extends Job
+{
+    public int $tries = 3;
+    public int $backoff = 10;
+    
+    public function __construct(public string $email) {}
+
+    public function handle(): void
+    {
+        // Send email...
+    }
+}
+
+// Dispatch to the default queue immediately
+$queueManager->push(new SendEmailJob('test@example.com'));
+
+// Dispatch to a specific queue with a 60s delay
+$queueManager->later(60, new SendEmailJob('test@example.com'), 'emails');
+```
+
+Run the worker from the CLI:
+
+```bash
+# php bin/worker [queue] [connection] [sleep]
+php bin/worker default
+php bin/worker emails redis 3
 ```
 
 ## Container
