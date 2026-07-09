@@ -1,0 +1,116 @@
+#!/usr/bin/env php
+<?php
+
+require __DIR__ . '/../vendor/autoload.php';
+
+use Luminus\App;
+use Luminus\Database;
+use Luminus\Database\Migrator;
+
+// Boot framework
+$app = new App();
+$app->loadEnv();
+$app->loadConfig(require __DIR__ . '/../config/app.php');
+
+$container = $app->getContainer();
+if (!$container->has(Database::class)) {
+    echo "Error: Database service is not configured in config/app.php.\n";
+    exit(1);
+}
+
+$db = $container->get(Database::class);
+$migrator = new Migrator($db);
+
+$command = $argv[1] ?? 'help';
+
+switch ($command) {
+    case 'up':
+        echo "Running pending migrations...\n";
+        try {
+            $executed = $migrator->up();
+            if (empty($executed)) {
+                echo "Nothing to migrate.\n";
+            } else {
+                foreach ($executed as $mig) {
+                    echo " - Migrated: \033[32m{$mig}\033[0m\n";
+                }
+                echo "\033[32mSuccess: Migration up finished.\033[0m\n";
+            }
+        } catch (\Throwable $e) {
+            echo "\033[31mError during migration: {$e->getMessage()}\033[0m\n";
+            exit(1);
+        }
+        break;
+
+    case 'rollback':
+        echo "Rolling back last batch of migrations...\n";
+        try {
+            $rolledBack = $migrator->rollback();
+            if (empty($rolledBack)) {
+                echo "Nothing to rollback.\n";
+            } else {
+                foreach ($rolledBack as $mig) {
+                    echo " - Rolled back: \033[33m{$mig}\033[0m\n";
+                }
+                echo "\033[32mSuccess: Rollback finished.\033[0m\n";
+            }
+        } catch (\Throwable $e) {
+            echo "\033[31mError during rollback: {$e->getMessage()}\033[0m\n";
+            exit(1);
+        }
+        break;
+
+    case 'status':
+        try {
+            $status = $migrator->status();
+            if (empty($status)) {
+                echo "No migrations found.\n";
+            } else {
+                echo sprintf("%-50s | %-10s | %-5s | %-20s\n", "Migration", "Status", "Batch", "Applied At");
+                echo str_repeat("-", 95) . "\n";
+                foreach ($status as $row) {
+                    $color = $row['status'] === 'applied' ? "\033[32m" : "\033[33m";
+                    echo sprintf(
+                        "%-50s | {$color}%-10s\033[0m | %-5s | %-20s\n",
+                        $row['migration'],
+                        ucfirst($row['status']),
+                        $row['batch'] ?? '-',
+                        $row['applied_at'] ?? '-'
+                    );
+                }
+            }
+        } catch (\Throwable $e) {
+            echo "\033[31mError getting status: {$e->getMessage()}\033[0m\n";
+            exit(1);
+        }
+        break;
+
+    case 'create':
+        $name = $argv[2] ?? null;
+        if (!$name) {
+            echo "Error: Please specify a name for the migration. E.g., php bin/migrate create create_users_table\n";
+            exit(1);
+        }
+        try {
+            $paths = $migrator->create($name);
+            echo "Created migration files:\n";
+            echo " - Up  : {$paths['up']}\n";
+            echo " - Down: {$paths['down']}\n";
+        } catch (\Throwable $e) {
+            echo "\033[31mError creating migration: {$e->getMessage()}\033[0m\n";
+            exit(1);
+        }
+        break;
+
+    case 'help':
+    default:
+        echo "Luminus Migration CLI\n\n";
+        echo "Usage:\n";
+        echo "  php bin/migrate <command> [arguments]\n\n";
+        echo "Commands:\n";
+        echo "  up            Apply all pending migrations\n";
+        echo "  rollback      Rollback the last batch of migrations\n";
+        echo "  status        Show the status of each migration\n";
+        echo "  create <name> Create a new migration file pair\n";
+        break;
+}

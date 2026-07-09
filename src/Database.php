@@ -19,14 +19,18 @@ class Database
                 throw new \RuntimeException('Database name is not configured');
             }
 
-            $dsn = sprintf(
-                '%s:host=%s;port=%s;dbname=%s;charset=%s',
-                $this->config['driver'] ?? 'mysql',
-                $this->config['host'] ?? '127.0.0.1',
-                $this->config['port'] ?? '3306',
-                $this->config['database'],
-                $this->config['charset'] ?? 'utf8mb4'
-            );
+            if (($this->config['driver'] ?? 'mysql') === 'sqlite') {
+                $dsn = 'sqlite:' . $this->config['database'];
+            } else {
+                $dsn = sprintf(
+                    '%s:host=%s;port=%s;dbname=%s;charset=%s',
+                    $this->config['driver'] ?? 'mysql',
+                    $this->config['host'] ?? '127.0.0.1',
+                    $this->config['port'] ?? '3306',
+                    $this->config['database'],
+                    $this->config['charset'] ?? 'utf8mb4'
+                );
+            }
 
             $this->pdo = new \PDO(
                 $dsn,

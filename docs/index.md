@@ -52,6 +52,7 @@ views/                 # PHP templates
 | [docker-deploy.md](docker-deploy.md) | Docker, compose, Makefile, production |
 | [cli.md](cli.md) | Console REPL, dev server, scripts |
 | [queues.md](queues.md) | Background jobs, multiple drivers, CLI worker |
+| [migrations.md](migrations.md) | Database schema migrations, up/down scripts, status |
 
 ## Quick start
 
@@ -76,6 +77,7 @@ make dev      # or: bin/dev
 | SecurityHeadersMiddleware | `src/SecurityHeadersMiddleware.php` | HTTP security headers middleware |
 | Database | `src/Database.php` | PDO wrapper, transactions |
 | QueryBuilder | `src/QueryBuilder.php` | Fluent SELECT/INSERT/UPDATE/DELETE |
+| Migrator | `src/Database/Migrator.php` | Database migrations runner |
 | Async | `src/Async.php` | Fibers, concurrent HTTP, task collection |
 | QueueManager | `src/Queue/QueueManager.php` | Queue connection and job dispatching |
 | Job | `src/Queue/Job.php` | Abstract base class for queue jobs |
