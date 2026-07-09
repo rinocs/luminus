@@ -54,6 +54,7 @@ make dev
 | [Async](docs/async.md) | Fibers, concurrent HTTP, parallel tasks |
 | [Docker & deploy](docs/docker-deploy.md) | Docker, compose, Makefile |
 | [CLI](docs/cli.md) | Console, scripts, Makefile targets |
+| [Migrations](docs/migrations.md) | Database schema migrations, up/rollback/status |
 
 ## Examples
 
@@ -78,6 +79,8 @@ src/                   # Framework core (Luminus\)
   View.php             # Plain PHP template engine
   Database.php         # PDO wrapper
    QueryBuilder.php     # Fluent query builder
+   Database/
+     Migrator.php       # Database migrations runner
    Middleware.php       # Middleware interface
    Async.php            # Fiber-based concurrency
    helpers.php          # env(), e(), csrf_token(), csrf_field(), session() helpers

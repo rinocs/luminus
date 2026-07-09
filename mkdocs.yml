@@ -33,6 +33,8 @@ nav:
   - Views: views.md
   - Container: container.md
   - Database: database.md
+  - Migrations: migrations.md
+  - Queues: queues.md
   - Async: async.md
   - Security: security.md
   - Docker & Deploy: docker-deploy.md
