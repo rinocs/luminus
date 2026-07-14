@@ -4,7 +4,7 @@ namespace Luminus;
 
 class App
 {
-    private Container $container;
+    private readonly Container $container;
     private array $config = [];
 
     public function __construct()
@@ -37,7 +37,6 @@ class App
 
     public function loadEnv(string $path = __DIR__ . '/../.env'): void
     {
-
         if (!file_exists($path)) {
             return;
         }

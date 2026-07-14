@@ -6,7 +6,7 @@ class Router
 {
     private array $routes = [];
     private array $middleware = [];
-    private Container $container;
+    private readonly Container $container;
 
     public function __construct(Container $container)
     {

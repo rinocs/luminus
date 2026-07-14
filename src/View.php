@@ -4,7 +4,7 @@ namespace Luminus;
 
 class View
 {
-    private string $viewsPath;
+    private readonly string $viewsPath;
     private ?string $layout = null;
     private array $sections = [];
     private string $currentSection = '';
@@ -65,17 +65,22 @@ class View
         echo $this->sections[$name] ?? '';
     }
 
-    private function renderFile(string $template, array $data): string
+    private function renderFile(string $__template, array $__data): string
     {
-        $file = $this->viewsPath . '/' . str_replace('.', '/', $template) . '.php';
+        $__file = $this->viewsPath . '/' . str_replace('.', '/', $__template) . '.php';
 
-        if (!file_exists($file)) {
-            throw new \RuntimeException("View [{$template}] not found: {$file}");
+        if (!file_exists($__file)) {
+            throw new \RuntimeException("View [{$__template}] not found: {$__file}");
         }
 
-        extract($data);
+        extract($__data);
         ob_start();
-        require $file;
+        try {
+            require $__file;
+        } catch (\Throwable $e) {
+            ob_end_clean();
+            throw $e;
+        }
         return ob_get_clean();
     }
 }

@@ -4,8 +4,8 @@ namespace Luminus;
 
 class QueryBuilder
 {
-    private Database $db;
-    private string $table;
+    private readonly Database $db;
+    private readonly string $table;
     private array $wheres = [];
     private array $params = [];
     private ?string $orderBy = null;
@@ -32,14 +32,14 @@ class QueryBuilder
             $operator = '=';
         }
 
-        $this->wheres[] = "{$column} {$operator} ?";
+        $this->wheres[] = $this->db->quoteIdentifier($column) . " {$operator} ?";
         $this->params[] = $value;
         return $this;
     }
 
     public function orderBy(string $column, string $direction = 'ASC'): static
     {
-        $this->orderBy = "{$column} {$direction}";
+        $this->orderBy = $this->db->quoteIdentifier($column) . " {$direction}";
         return $this;
     }
 
@@ -82,8 +82,8 @@ class QueryBuilder
 
     public function update(array $data): int
     {
-        $columns = implode(', ', array_map(fn($col) => "`{$col}` = ?", array_keys($data)));
-        $sql = "UPDATE `{$this->table}` SET {$columns}";
+        $columns = implode(', ', array_map(fn($col) => $this->db->quoteIdentifier($col) . " = ?", array_keys($data)));
+        $sql = "UPDATE " . $this->db->quoteIdentifier($this->table) . " SET {$columns}";
 
         if (!empty($this->wheres)) {
             $sql .= ' WHERE ' . implode(' AND ', $this->wheres);
@@ -94,7 +94,7 @@ class QueryBuilder
 
     public function delete(): int
     {
-        $sql = "DELETE FROM `{$this->table}`";
+        $sql = "DELETE FROM " . $this->db->quoteIdentifier($this->table);
 
         if (!empty($this->wheres)) {
             $sql .= ' WHERE ' . implode(' AND ', $this->wheres);
@@ -112,8 +112,8 @@ class QueryBuilder
 
     private function buildSelect(): string
     {
-        $columns = implode(', ', $this->columns);
-        $sql = "SELECT {$columns} FROM `{$this->table}`";
+        $columns = $this->columns === ['*'] ? '*' : implode(', ', array_map(fn($col) => $col === '*' ? '*' : $this->db->quoteIdentifier($col), $this->columns));
+        $sql = "SELECT {$columns} FROM " . $this->db->quoteIdentifier($this->table);
 
         if (!empty($this->wheres)) {
             $sql .= ' WHERE ' . implode(' AND ', $this->wheres);

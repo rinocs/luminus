@@ -15,7 +15,7 @@ class QueryBuilderTest extends TestCase
         $this->pdo->exec('CREATE TABLE test (id INTEGER PRIMARY KEY, name TEXT, active INTEGER)');
         $this->pdo->exec("INSERT INTO test (name, active) VALUES ('Alice', 1), ('Bob', 1), ('Charlie', 0)");
 
-        $config = ['driver' => 'sqlite', 'database' => ':memory:'];
+        $config = ['driver' => 'mysql', 'database' => 'test'];
         $this->db = $this->getMockBuilder(Database::class)
             ->onlyMethods(['connect', 'query', 'execute', 'insert'])
             ->setConstructorArgs([$config])
@@ -27,7 +27,7 @@ class QueryBuilderTest extends TestCase
     public function test_get_returns_all(): void
     {
         $this->db->method('query')->willReturnCallback(
-            fn() => $this->pdo->query('SELECT * FROM `test`')->fetchAll(\PDO::FETCH_ASSOC)
+            fn() => $this->pdo->query('SELECT * FROM test')->fetchAll(\PDO::FETCH_ASSOC)
         );
 
         $rows = (new QueryBuilder($this->db, 'test'))->get();
@@ -38,14 +38,14 @@ class QueryBuilderTest extends TestCase
     {
         $this->db->method('query')->willReturnCallback(
             fn(string $sql, array $params) => $this->pdo->prepare($sql)->execute($params)
-                ? $this->pdo->query("SELECT * FROM `test` WHERE active = {$params[0]}")->fetchAll(\PDO::FETCH_ASSOC)
+                ? $this->pdo->query("SELECT * FROM test WHERE active = {$params[0]}")->fetchAll(\PDO::FETCH_ASSOC)
                 : []
         );
 
         $rows = (new QueryBuilder($this->db, 'test'))->where('active', '=', 1)->get();
         $this->assertCount(2, $rows);
         foreach ($rows as $row) {
-            $this->assertSame(1, $row['active']);
+            $this->assertSame(1, (int)$row['active']);
         }
     }
 
@@ -53,7 +53,7 @@ class QueryBuilderTest extends TestCase
     {
         $this->db->method('query')->willReturnCallback(
             fn(string $sql, array $params) => $this->pdo->prepare($sql)->execute($params)
-                ? $this->pdo->query("SELECT * FROM `test` WHERE name = '{$params[0]}' LIMIT 1")->fetchAll(\PDO::FETCH_ASSOC)
+                ? $this->pdo->query("SELECT * FROM test WHERE name = '{$params[0]}' LIMIT 1")->fetchAll(\PDO::FETCH_ASSOC)
                 : []
         );
 
@@ -73,7 +73,7 @@ class QueryBuilderTest extends TestCase
     {
         $this->db->method('query')->willReturnCallback(
             fn(string $sql, array $params) => $this->pdo->prepare($sql)->execute($params)
-                ? $this->pdo->query("SELECT * FROM `test` WHERE id = {$params[0]} LIMIT 1")->fetchAll(\PDO::FETCH_ASSOC)
+                ? $this->pdo->query("SELECT * FROM test WHERE id = {$params[0]} LIMIT 1")->fetchAll(\PDO::FETCH_ASSOC)
                 : []
         );
 
@@ -92,7 +92,7 @@ class QueryBuilderTest extends TestCase
     public function test_order_by(): void
     {
         $this->db->method('query')->willReturnCallback(
-            fn() => $this->pdo->query("SELECT * FROM `test` ORDER BY name DESC")->fetchAll(\PDO::FETCH_ASSOC)
+            fn() => $this->pdo->query("SELECT * FROM test ORDER BY name DESC")->fetchAll(\PDO::FETCH_ASSOC)
         );
 
         $rows = (new QueryBuilder($this->db, 'test'))->orderBy('name', 'DESC')->get();
@@ -133,14 +133,14 @@ class QueryBuilderTest extends TestCase
         );
 
         (new QueryBuilder($this->db, 'test'))->select(['name'])->get();
-        $this->assertStringContainsString('SELECT name', $capturedSql);
+        $this->assertStringContainsString('SELECT `name`', $capturedSql);
     }
 
     public function test_where_with_two_args(): void
     {
         $this->db->method('query')->willReturnCallback(
             fn(string $sql, array $params) => $this->pdo->prepare($sql)->execute($params)
-                ? $this->pdo->query("SELECT * FROM `test` WHERE name = '{$params[0]}' LIMIT 1")->fetchAll(\PDO::FETCH_ASSOC)
+                ? $this->pdo->query("SELECT * FROM test WHERE name = '{$params[0]}' LIMIT 1")->fetchAll(\PDO::FETCH_ASSOC)
                 : []
         );
 

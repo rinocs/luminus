@@ -6,17 +6,20 @@ class Container
 {
     private array $bindings = [];
     private array $instances = [];
+    private array $singletons = [];
 
     public function set(string $id, mixed $resolver): void
     {
         $this->bindings[$id] = $resolver;
         unset($this->instances[$id]);
+        $this->singletons[$id] = false;
     }
 
     public function singleton(string $id, callable $resolver): void
     {
         $this->bindings[$id] = $resolver;
         unset($this->instances[$id]);
+        $this->singletons[$id] = true;
     }
 
     public function get(string $id): mixed
@@ -28,12 +31,15 @@ class Container
         if (isset($this->bindings[$id])) {
             $resolver = $this->bindings[$id];
             $instance = is_callable($resolver) ? $resolver($this) : $resolver;
-        } else {
-            $instance = $this->resolve($id);
+
+            if ($this->singletons[$id] ?? false) {
+                $this->instances[$id] = $instance;
+            }
+
+            return $instance;
         }
 
-        $this->instances[$id] = $instance;
-        return $instance;
+        return $this->resolve($id);
     }
 
     public function has(string $id): bool

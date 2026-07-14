@@ -4,11 +4,11 @@ namespace Luminus;
 
 class Request
 {
-    private array $query;
-    private array $body;
-    private array $files;
-    private array $server;
-    private array $cookies;
+    private readonly array $query;
+    private readonly array $body;
+    private readonly array $files;
+    private readonly array $server;
+    private readonly array $cookies;
     private ?array $json = null;
 
     public function __construct(

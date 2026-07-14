@@ -5,7 +5,7 @@ namespace Luminus;
 class Database
 {
     private ?\PDO $pdo = null;
-    private array $config;
+    private readonly array $config;
 
     public function __construct(array $config)
     {
@@ -19,14 +19,20 @@ class Database
                 throw new \RuntimeException('Database name is not configured');
             }
 
-            $dsn = sprintf(
-                '%s:host=%s;port=%s;dbname=%s;charset=%s',
-                $this->config['driver'] ?? 'mysql',
-                $this->config['host'] ?? '127.0.0.1',
-                $this->config['port'] ?? '3306',
-                $this->config['database'],
-                $this->config['charset'] ?? 'utf8mb4'
-            );
+            $driver = $this->config['driver'] ?? 'mysql';
+
+            if ($driver === 'sqlite') {
+                $dsn = "sqlite:{$this->config['database']}";
+            } else {
+                $dsn = sprintf(
+                    '%s:host=%s;port=%s;dbname=%s;charset=%s',
+                    $driver,
+                    $this->config['host'] ?? '127.0.0.1',
+                    $this->config['port'] ?? '3306',
+                    $this->config['database'],
+                    $this->config['charset'] ?? 'utf8mb4'
+                );
+            }
 
             $this->pdo = new \PDO(
                 $dsn,
@@ -59,15 +65,26 @@ class Database
 
     public function insert(string $table, array $data): string
     {
-        $columns = implode(', ', array_map(fn($col) => "`{$col}`", array_keys($data)));
+        $columns = implode(', ', array_map(fn($col) => $this->quoteIdentifier($col), array_keys($data)));
         $placeholders = implode(', ', array_fill(0, count($data), '?'));
 
         $this->execute(
-            "INSERT INTO `{$table}` ({$columns}) VALUES ({$placeholders})",
+            "INSERT INTO " . $this->quoteIdentifier($table) . " ({$columns}) VALUES ({$placeholders})",
             array_values($data)
         );
 
         return $this->connect()->lastInsertId();
+    }
+
+    public function quoteIdentifier(string $identifier): string
+    {
+        $driver = $this->config['driver'] ?? 'mysql';
+
+        return match ($driver) {
+            'mysql' => "`{$identifier}`",
+            'pgsql', 'sqlite' => "\"{$identifier}\"",
+            default => $identifier,
+        };
     }
 
     public function table(string $table): QueryBuilder
