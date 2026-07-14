@@ -61,13 +61,30 @@ class Database
         return $stmt->rowCount();
     }
 
+    public function quoteIdentifier(string $identifier): string
+    {
+        $parts = explode('.', $identifier);
+
+        foreach ($parts as $part) {
+            if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $part)) {
+                throw new \InvalidArgumentException("Invalid identifier: {$identifier}");
+            }
+        }
+
+        $driver = $this->config['driver'] ?? 'mysql';
+        $char = ($driver === 'mysql') ? '`' : '"';
+
+        return implode('.', array_map(fn($p) => "{$char}{$p}{$char}", $parts));
+    }
+
     public function insert(string $table, array $data): string
     {
-        $columns = implode(', ', array_map(fn($col) => "`{$col}`", array_keys($data)));
+        $quotedTable = $this->quoteIdentifier($table);
+        $columns = implode(', ', array_map(fn($col) => $this->quoteIdentifier($col), array_keys($data)));
         $placeholders = implode(', ', array_fill(0, count($data), '?'));
 
         $this->execute(
-            "INSERT INTO `{$table}` ({$columns}) VALUES ({$placeholders})",
+            "INSERT INTO {$quotedTable} ({$columns}) VALUES ({$placeholders})",
             array_values($data)
         );
 

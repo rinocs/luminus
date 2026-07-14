@@ -15,7 +15,7 @@ class QueryBuilderTest extends TestCase
         $this->pdo->exec('CREATE TABLE test (id INTEGER PRIMARY KEY, name TEXT, active INTEGER)');
         $this->pdo->exec("INSERT INTO test (name, active) VALUES ('Alice', 1), ('Bob', 1), ('Charlie', 0)");
 
-        $config = ['driver' => 'sqlite', 'database' => ':memory:'];
+        $config = ['driver' => 'mysql', 'database' => ':memory:'];
         $this->db = $this->getMockBuilder(Database::class)
             ->onlyMethods(['connect', 'query', 'execute', 'insert'])
             ->setConstructorArgs([$config])
@@ -237,5 +237,40 @@ class QueryBuilderTest extends TestCase
         $capturedSql = '';
         $builder->where('id', '=', 1)->delete();
         $this->assertStringContainsString('DELETE FROM `test`', $capturedSql);
+    }
+
+    public function test_generated_sql_has_double_quote_quoting_for_sqlite_and_pgsql(): void
+    {
+        $config = ['driver' => 'sqlite', 'database' => ':memory:'];
+        $sqliteDb = $this->getMockBuilder(Database::class)
+            ->onlyMethods(['connect', 'query', 'execute', 'insert'])
+            ->setConstructorArgs([$config])
+            ->getMock();
+
+        $capturedSql = '';
+        $sqliteDb->method('query')->willReturnCallback(
+            function (string $sql) use (&$capturedSql) {
+                $capturedSql = $sql;
+                return [];
+            }
+        );
+        $sqliteDb->method('execute')->willReturnCallback(
+            function (string $sql) use (&$capturedSql) {
+                $capturedSql = $sql;
+                return 1;
+            }
+        );
+
+        $builder = new QueryBuilder($sqliteDb, 'test');
+
+        $builder->select(['id', 'name'])->get();
+        $this->assertStringContainsString('FROM "test"', $capturedSql);
+
+        $builder->where('id', '=', 1)->update(['name' => 'y']);
+        $this->assertStringContainsString('UPDATE "test"', $capturedSql);
+
+        $capturedSql = '';
+        $builder->where('id', '=', 1)->delete();
+        $this->assertStringContainsString('DELETE FROM "test"', $capturedSql);
     }
 }

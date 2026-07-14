@@ -26,12 +26,24 @@ class ViewTest extends TestCase
         file_put_contents($dir . '/layouts/main.php', '<html><body><?php $this->renderSection("header") ?><?php $this->renderSection("content") ?></body></html>');
         file_put_contents($dir . '/with-layout.php', '<?php $this->layout("layouts.main") ?><?php $this->section("content") ?><p><?= $body ?></p><?php $this->endSection() ?>');
         file_put_contents($dir . '/multi-section.php', '<?php $this->layout("layouts.main") ?><?php $this->section("header") ?><header>H</header><?php $this->endSection() ?><?php $this->section("content") ?><main>M</main><?php $this->endSection() ?>');
+        file_put_contents($dir . '/collision.php', '<h1><?= $template ?> / <?= $data ?> / <?= $file ?> / <?= $bufferLevel ?></h1>');
     }
 
     public function test_render_simple_template(): void
     {
         $output = $this->view->render('simple', ['title' => 'Hello']);
         $this->assertSame('<h1>Hello</h1>', $output);
+    }
+
+    public function test_render_with_colliding_variables(): void
+    {
+        $output = $this->view->render('collision', [
+            'template' => 'T',
+            'data' => 'D',
+            'file' => 'F',
+            'bufferLevel' => 'B'
+        ]);
+        $this->assertSame('<h1>T / D / F / B</h1>', $output);
     }
 
     public function test_render_with_layout(): void
