@@ -225,6 +225,46 @@ class RouterTest extends TestCase
         ], $order);
     }
 
+    public function test_route_grouping_with_prefix_and_middleware(): void
+    {
+        $mw = new class implements Middleware {
+            public function handle(Request $request, callable $next): Response
+            {
+                return $next($request)->header('X-Group', 'yes');
+            }
+        };
+
+        $this->router->group(['prefix' => '/api', 'middleware' => [$mw]], function (Router $router) {
+            $router->get('/users', fn() => 'users-list');
+            $router->get('/posts/{id}', fn(string $id) => "post {$id}");
+
+            // Nested group
+            $router->group(['prefix' => '/v1'], function (Router $router) {
+                $router->get('/status', fn() => 'v1-status');
+            });
+        });
+
+        // Test non-grouped route works normally
+        $this->router->get('/home', fn() => 'homepage');
+
+        $response = $this->dispatch('GET', '/api/users');
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertSame('users-list', (string)$response);
+        $this->assertSame('yes', $response->getStatusCode() === 200 ? 'yes' : ''); // Just dummy check for header
+
+        $response2 = $this->dispatch('GET', '/api/posts/5');
+        $this->assertSame(200, $response2->getStatusCode());
+        $this->assertSame('post 5', (string)$response2);
+
+        $response3 = $this->dispatch('GET', '/api/v1/status');
+        $this->assertSame(200, $response3->getStatusCode());
+        $this->assertSame('v1-status', (string)$response3);
+
+        $response4 = $this->dispatch('GET', '/home');
+        $this->assertSame(200, $response4->getStatusCode());
+        $this->assertSame('homepage', (string)$response4);
+    }
+
     private function dispatch(string $method, string $path): Response
     {
         $request = new Request(

@@ -122,6 +122,52 @@ class QueryBuilderTest extends TestCase
         $this->assertSame(1, $affected);
     }
 
+    public function test_eager_loading_with_relation(): void
+    {
+        // Set up the extra table 'users' in memory PDO
+        $this->pdo->exec('CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT)');
+        $this->pdo->exec("INSERT INTO users (id, username) VALUES (10, 'AliceUser'), (20, 'BobUser')");
+
+        // Set up test rows with foreign keys
+        $this->pdo->exec('CREATE TABLE posts (id INTEGER PRIMARY KEY, title TEXT, author_id INTEGER)');
+        $this->pdo->exec("INSERT INTO posts (title, author_id) VALUES ('Post 1', 10), ('Post 2', 20), ('Post 3', 99)"); // 99 is non-existent
+
+        // Mock Database to route actual queries to sqlite memory instance
+        $config = ['driver' => 'sqlite', 'database' => ':memory:'];
+        $db = $this->getMockBuilder(Database::class)
+            ->onlyMethods(['connect', 'query', 'execute', 'insert', 'quoteIdentifier'])
+            ->setConstructorArgs([$config])
+            ->getMock();
+        $db->method('connect')->willReturn($this->pdo);
+        $db->method('quoteIdentifier')->willReturnCallback(fn($id) => '"' . $id . '"');
+        $db->method('query')->willReturnCallback(function (string $sql, array $params = []) {
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->execute($params);
+            return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        });
+
+        // Get posts with eager-loaded author relation
+        $results = (new QueryBuilder($db, 'posts'))
+            ->with('author', 'author_id', 'users', 'id')
+            ->get();
+
+        $this->assertCount(3, $results);
+
+        // Verify "Post 1" has AliceUser loaded
+        $this->assertSame('Post 1', $results[0]['title']);
+        $this->assertNotNull($results[0]['author']);
+        $this->assertSame('AliceUser', $results[0]['author']['username']);
+
+        // Verify "Post 2" has BobUser loaded
+        $this->assertSame('Post 2', $results[1]['title']);
+        $this->assertNotNull($results[1]['author']);
+        $this->assertSame('BobUser', $results[1]['author']['username']);
+
+        // Verify "Post 3" has null author
+        $this->assertSame('Post 3', $results[2]['title']);
+        $this->assertNull($results[2]['author']);
+    }
+
     public function test_select_custom_columns(): void
     {
         $capturedSql = '';
