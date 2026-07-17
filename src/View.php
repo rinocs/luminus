@@ -72,26 +72,26 @@ class View
         echo $this->sections[$name] ?? '';
     }
 
-    private function renderFile(string $template, array $data): string
+    private function renderFile(string $__template, array $__data): string
     {
-        $file = $this->viewsPath . '/' . str_replace('.', '/', $template) . '.php';
+        $__file = $this->viewsPath . '/' . str_replace('.', '/', $__template) . '.php';
 
-        if (!file_exists($file)) {
-            throw new \RuntimeException("View [{$template}] not found: {$file}");
+        if (!file_exists($__file)) {
+            throw new \RuntimeException("View [{$__template}] not found: {$__file}");
         }
 
-        $bufferLevel = ob_get_level();
-        extract($data, EXTR_SKIP);
+        $__bufferLevel = ob_get_level();
+        extract($__data, EXTR_SKIP);
         ob_start();
 
         try {
-            require $file;
+            require $__file;
             return ob_get_clean();
-        } catch (\Throwable $e) {
-            while (ob_get_level() > $bufferLevel) {
+        } catch (\Throwable $__e) {
+            while (ob_get_level() > $__bufferLevel) {
                 ob_end_clean();
             }
-            throw $e;
+            throw $__e;
         }
     }
 }

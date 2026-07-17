@@ -78,6 +78,14 @@ class ContainerTest extends TestCase
         $this->assertSame('injected', $obj->dep->value);
     }
 
+    public function test_set_callable_acts_as_factory(): void
+    {
+        $this->container->set('factory_obj', fn() => new stdClass());
+        $a = $this->container->get('factory_obj');
+        $b = $this->container->get('factory_obj');
+        $this->assertNotSame($a, $b);
+    }
+
     public function test_container_returns_self(): void
     {
         $this->assertSame($this->container, $this->container->get(Container::class));

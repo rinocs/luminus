@@ -112,7 +112,8 @@ class QueryBuilder
             fn($col) => $this->quoteIdentifier($col) . ' = ?',
             array_keys($data)
         ));
-        $sql = "UPDATE `{$this->table}` SET {$columns}";
+        $quotedTable = $this->quoteIdentifier($this->table);
+        $sql = "UPDATE {$quotedTable} SET {$columns}";
 
         if (!empty($this->wheres)) {
             $sql .= ' WHERE ' . implode(' AND ', $this->wheres);
@@ -123,7 +124,8 @@ class QueryBuilder
 
     public function delete(): int
     {
-        $sql = "DELETE FROM `{$this->table}`";
+        $quotedTable = $this->quoteIdentifier($this->table);
+        $sql = "DELETE FROM {$quotedTable}";
 
         if (!empty($this->wheres)) {
             $sql .= ' WHERE ' . implode(' AND ', $this->wheres);
@@ -143,21 +145,14 @@ class QueryBuilder
 
     private function quoteIdentifier(string $identifier): string
     {
-        $parts = explode('.', $identifier);
-
-        foreach ($parts as $part) {
-            if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $part)) {
-                throw new \InvalidArgumentException("Invalid identifier: {$identifier}");
-            }
-        }
-
-        return implode('.', array_map(fn($p) => "`{$p}`", $parts));
+        return $this->db->quoteIdentifier($identifier);
     }
 
     private function buildSelect(): string
     {
         $columns = implode(', ', $this->columns);
-        $sql = "SELECT {$columns} FROM `{$this->table}`";
+        $quotedTable = $this->quoteIdentifier($this->table);
+        $sql = "SELECT {$columns} FROM {$quotedTable}";
 
         if (!empty($this->wheres)) {
             $sql .= ' WHERE ' . implode(' AND ', $this->wheres);
