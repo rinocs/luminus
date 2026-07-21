@@ -44,10 +44,17 @@ class Worker
 
         try {
             $jobClass = $payload['job'];
-            $job = unserialize($payload['data']);
+
+            // Security: Defense in depth - verify class is a valid subclass of Job before deserialization
+            if (!is_subclass_of($jobClass, Job::class)) {
+                throw new \RuntimeException("Job class [{$jobClass}] must be a subclass of " . Job::class);
+            }
+
+            // Security: Limit class deserialization to the specific job class to prevent PHP Object Injection
+            $job = unserialize($payload['data'], ['allowed_classes' => [$jobClass]]);
 
             if (!$job instanceof Job) {
-                throw new \RuntimeException("Job must be an instance of Luminus\Queue\Job");
+                throw new \RuntimeException("Job must be an instance of " . Job::class);
             }
 
             echo "Processing job: {$jobClass} (ID: {$jobData['id']}, Attempts: {$jobData['attempts']})\n";
