@@ -269,4 +269,41 @@ class SecurityTest extends TestCase
         $this->expectExceptionMessage("Job class must be a subclass of Luminus\Queue\Job");
         $driver->push('default', $maliciousPayload);
     }
+
+    public function test_csrf_token_regenerated_on_login(): void
+    {
+        $oldToken = Session::token();
+        $this->assertNotEmpty($oldToken);
+
+        $appMock = $this->createMock(\Luminus\App::class);
+        $viewMock = $this->createMock(\Luminus\View::class);
+        $dbMock = $this->createMock(\Luminus\Database::class);
+
+        $dbMock->method('query')
+            ->willReturn([
+                [
+                    'id' => 1,
+                    'email' => 'test@example.com',
+                    'name' => 'Test User',
+                    'password' => password_hash('password', PASSWORD_BCRYPT),
+                ]
+            ]);
+
+        $request = new Request(
+            body: [
+                'email' => 'test@example.com',
+                'password' => 'password',
+            ],
+            server: ['REQUEST_METHOD' => 'POST']
+        );
+
+        $controller = new \Luminus\Breeze\Controllers\AuthController($appMock, $viewMock, $dbMock);
+        $response = $controller->store($request);
+
+        $this->assertSame(302, $response->getStatusCode());
+
+        $newToken = Session::token();
+        $this->assertNotEmpty($newToken);
+        $this->assertNotEquals($oldToken, $newToken);
+    }
 }

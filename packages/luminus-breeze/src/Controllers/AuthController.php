@@ -64,6 +64,7 @@ class AuthController
 
             if (!empty($user) && password_verify($password, $user[0]['password'])) {
                 Session::regenerate();
+                Session::regenerateToken();
                 Session::put('user_id', $user[0]['id']);
                 Session::put('user_email', $user[0]['email']);
                 Session::put('user_name', $user[0]['name']);
@@ -169,6 +170,7 @@ class AuthController
 
         if (!empty($user)) {
             Session::regenerate();
+            Session::regenerateToken();
             Session::put('user_id', $user[0]['id']);
             Session::put('user_email', $user[0]['email']);
             Session::put('user_name', $user[0]['name']);
