@@ -55,4 +55,31 @@ class helpersTest extends TestCase
         putenv('TEST_PUT=from_putenv');
         $this->assertSame('from_putenv', env('TEST_PUT'));
     }
+
+    public function test_array_find(): void
+    {
+        $array = [1, 2, 3, 4, 5];
+        $this->assertSame(4, array_find($array, fn($v) => $v > 3));
+        $this->assertNull(array_find($array, fn($v) => $v > 10));
+    }
+
+    public function test_array_find_key(): void
+    {
+        $array = ['a' => 1, 'b' => 2];
+        $this->assertSame('b', array_find_key($array, fn($v) => $v === 2));
+    }
+
+    public function test_array_any(): void
+    {
+        $array = [1, 2, 3];
+        $this->assertTrue(array_any($array, fn($v) => $v === 2));
+        $this->assertFalse(array_any($array, fn($v) => $v === 10));
+    }
+
+    public function test_array_all(): void
+    {
+        $array = [1, 2, 3];
+        $this->assertTrue(array_all($array, fn($v) => $v < 10));
+        $this->assertFalse(array_all($array, fn($v) => $v === 2));
+    }
 }

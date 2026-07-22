@@ -8,6 +8,9 @@ class Router
     private array $middleware = [];
     private Container $container;
 
+    // Track active route grouping context
+    private array $groupStack = [];
+
     public function __construct(Container $container)
     {
         $this->container = $container;
@@ -38,12 +41,46 @@ class Router
         $this->addRoute('DELETE', $pattern, $handler);
     }
 
+    /**
+     * Define a group of routes sharing attributes like prefixes and middlewares.
+     */
+    public function group(array $attributes, callable $callback): void
+    {
+        $this->groupStack[] = $attributes;
+
+        $callback($this);
+
+        array_pop($this->groupStack);
+    }
+
     private function addRoute(string $method, string $pattern, mixed $handler): void
     {
+        // Resolve prefix and middleware from the active group stack
+        $prefix = '';
+        $middlewares = [];
+
+        foreach ($this->groupStack as $group) {
+            if (isset($group['prefix'])) {
+                $prefix .= '/' . trim($group['prefix'], '/');
+            }
+            if (isset($group['middleware'])) {
+                $groupMw = is_array($group['middleware']) ? $group['middleware'] : [$group['middleware']];
+                $middlewares = array_merge($middlewares, $groupMw);
+            }
+        }
+
+        if ($prefix !== '') {
+            $pattern = '/' . trim($prefix, '/') . '/' . ltrim($pattern, '/');
+            if ($pattern !== '/') {
+                $pattern = rtrim($pattern, '/');
+            }
+        }
+
         $this->routes[] = [
             'method' => $method,
             'pattern' => $this->compilePattern($pattern),
             'handler' => $handler,
+            'middleware' => $middlewares,
         ];
     }
 
@@ -84,6 +121,13 @@ class Router
 
         if ($route !== null) {
             $handler = fn(Request $req) => $this->resolveHandler($route['handler'], $req, $params);
+
+            // Apply route-specific middleware
+            if (!empty($route['middleware'])) {
+                foreach (array_reverse($route['middleware']) as $mw) {
+                    $handler = fn(Request $req) => $mw->handle($req, $handler);
+                }
+            }
         } elseif ($allowedMethods !== []) {
             $allow = implode(', ', array_unique($allowedMethods));
             $handler = fn(Request $req) => (new Response())
