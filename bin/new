@@ -6,8 +6,32 @@ GREEN='\033[0;32m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
+INSTALL_BREEZE=""
+POSITIONAL=()
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --breeze)
+            INSTALL_BREEZE=1
+            shift
+            ;;
+        --no-breeze)
+            INSTALL_BREEZE=0
+            shift
+            ;;
+        *)
+            POSITIONAL+=("$1")
+            shift
+            ;;
+    esac
+done
+
+if [ ${#POSITIONAL[@]} -gt 0 ]; then
+    set -- "${POSITIONAL[@]}"
+fi
+
 if [ $# -lt 1 ]; then
-    echo "Usage: bin/new <project-name> [directory]"
+    echo "Usage: bin/new <project-name> [directory] [--breeze|--no-breeze]"
     echo ""
     echo "Creates a new Luminus project."
     exit 1
@@ -17,8 +41,8 @@ PROJECT_NAME="$1"
 DIR="${2:-$PROJECT_NAME}"
 DIRNAME="$(basename "$(realpath -m "$DIR")")"
 
-if [ -d "$DIR" ]; then
-    echo -e "${RED}Error:${NC} Directory '$DIR' already exists."
+if [ -e "$DIR" ] || [ -L "$DIR" ]; then
+    echo -e "${RED}Error:${NC} Path '$DIR' already exists."
     exit 1
 fi
 
@@ -28,7 +52,7 @@ echo ""
 mkdir -p "$DIR"
 
 # --- directory structure ---
-mkdir -p "$DIR"/{public,src,config,routes,views/layouts,storage/{framework,logs,sessions},docker}
+mkdir -p "$DIR"/{public,src,config,routes,views/layouts,storage/{framework,logs,sessions},docker,bin}
 
 # --- composer.json ---
 cat > "$DIR/composer.json" <<EOF
@@ -74,7 +98,7 @@ require __DIR__ . '/index.php';
 PHPEOF
 
 # --- config/app.php ---
-cat > "$DIR/config/app.php" <<'PHPEOF'
+cat > "$DIR/config/app.php" <<PHPEOF
 <?php
 
 return [
@@ -88,7 +112,7 @@ return [
         'driver' => env('DB_DRIVER', 'mysql'),
         'host' => env('DB_HOST', '127.0.0.1'),
         'port' => env('DB_PORT', '3306'),
-        'database' => env('DB_DATABASE', $DIRNAME),
+        'database' => env('DB_DATABASE', '${DIRNAME}'),
         'username' => env('DB_USERNAME', 'root'),
         'password' => env('DB_PASSWORD', ''),
         'charset' => 'utf8mb4',
@@ -262,7 +286,7 @@ touch "$DIR/storage/.gitkeep"
 echo -e "${GREEN}✓${NC} Project structure created"
 echo ""
 
-# --- Copy framework source ---
+# --- Copy framework source and CLI tools ---
 MINIPHP_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
 if [ -d "$MINIPHP_DIR/src" ]; then
@@ -271,6 +295,17 @@ if [ -d "$MINIPHP_DIR/src" ]; then
     echo -e "${GREEN}✓${NC} Framework source copied (src/)"
 else
     echo -e "${RED}Warning:${NC} Could not find Luminus src/. Copy manually."
+fi
+
+if [ -d "$MINIPHP_DIR/bin" ]; then
+    mkdir -p "$DIR/bin"
+    for script in console migrate dev worker setup; do
+        if [ -f "$MINIPHP_DIR/bin/$script" ]; then
+            cp "$MINIPHP_DIR/bin/$script" "$DIR/bin/"
+        fi
+    done
+    chmod +x "$DIR/bin/"* 2>/dev/null || true
+    echo -e "${GREEN}✓${NC} Framework CLI tools copied (bin/)"
 fi
 
 # --- composer install ---
@@ -292,13 +327,26 @@ php -r "
 "
 rm composer.luminus.json
 
-composer dump-autoload 2>&1 | sed 's/^/  /'
+composer install --no-interaction --ignore-platform-reqs 2>&1 | sed 's/^/  /' || composer dump-autoload 2>&1 | sed 's/^/  /'
 
 # --- Optional Breeze auth scaffolding ---
 BREEZE_INSTALLED=0
-echo ""
-read -p "Install Breeze auth scaffolding? [y/N] " breeze_answer
-if [[ "$breeze_answer" =~ ^[Yy]$ ]]; then
+
+if [ -z "$INSTALL_BREEZE" ]; then
+    if [ -t 0 ]; then
+        echo ""
+        read -p "Install Breeze auth scaffolding? [y/N] " breeze_answer
+        if [[ "$breeze_answer" =~ ^[Yy]$ ]]; then
+            INSTALL_BREEZE=1
+        else
+            INSTALL_BREEZE=0
+        fi
+    else
+        INSTALL_BREEZE=0
+    fi
+fi
+
+if [ "$INSTALL_BREEZE" -eq 1 ]; then
     echo ""
     echo -e "${CYAN}Adding Breeze...${NC}"
 
@@ -314,7 +362,7 @@ if [[ "$breeze_answer" =~ ^[Yy]$ ]]; then
         file_put_contents('composer.json', json_encode(\$c, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
     "
 
-    composer update --no-interaction 2>&1 | sed 's/^/  /'
+    composer update --no-interaction --ignore-platform-reqs 2>&1 | sed 's/^/  /'
 
     cat > public/index.php <<'PHPEOF'
 <?php
