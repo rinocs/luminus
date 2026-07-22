@@ -19,7 +19,16 @@ class SyncDriver implements QueueDriverInterface
         $data = json_decode($payload, true);
         
         if (isset($data['data'])) {
-            $job = unserialize($data['data']);
+            $jobClass = $data['job'] ?? null;
+
+            // Security: Defense in depth - verify class is a valid subclass of Job before deserialization
+            if (!$jobClass || !is_subclass_of($jobClass, \Luminus\Queue\Job::class)) {
+                throw new \RuntimeException("Job class must be a subclass of Luminus\Queue\Job");
+            }
+
+            $options = ['allowed_classes' => [$jobClass]];
+            // Security: Limit class deserialization to the specific job class to prevent PHP Object Injection
+            $job = unserialize($data['data'], $options);
             
             try {
                 $job->handle();

@@ -8,6 +8,20 @@ use Luminus\StartSessionMiddleware;
 use Luminus\CsrfMiddleware;
 use Luminus\SecurityHeadersMiddleware;
 
+class SecureDummyJob extends \Luminus\Queue\Job
+{
+    public static bool $handled = false;
+    public function handle(): void
+    {
+        self::$handled = true;
+    }
+}
+
+class UnallowedClass
+{
+    public string $property = 'malicious';
+}
+
 class SecurityTest extends TestCase
 {
     protected function setUp(): void
@@ -208,5 +222,51 @@ class SecurityTest extends TestCase
         $this->assertTrue($cookies['theme']['secure']);
         $this->assertTrue($cookies['theme']['httpOnly']);
         $this->assertSame('Strict', $cookies['theme']['sameSite']);
+    }
+
+    public function test_unserialize_safe_deserialization_of_valid_job(): void
+    {
+        $job = new SecureDummyJob();
+        $payload = json_encode([
+            'job' => SecureDummyJob::class,
+            'data' => serialize($job)
+        ]);
+
+        $driver = new \Luminus\Queue\Drivers\SyncDriver(new \Luminus\Container());
+        SecureDummyJob::$handled = false;
+        $driver->push('default', $payload);
+        $this->assertTrue(SecureDummyJob::$handled);
+    }
+
+    public function test_unserialize_safe_deserialization_blocks_unallowed_serialized_class(): void
+    {
+        $driver = new \Luminus\Queue\Drivers\SyncDriver(new \Luminus\Container());
+        $unallowed = new UnallowedClass();
+        $maliciousPayload = json_encode([
+            'job' => SecureDummyJob::class, // Expected class is SecureDummyJob (valid Job class), but data contains UnallowedClass
+            'data' => serialize($unallowed)
+        ]);
+
+        // When deserialized, because allowed_classes is restricted to [SecureDummyJob::class],
+        // UnallowedClass will be unserialized as __PHP_Incomplete_Class.
+        // It will throw an exception when trying to call handle() on __PHP_Incomplete_Class,
+        // and crucially, it did not instantiate UnallowedClass.
+        $this->expectException(\Throwable::class);
+        $driver->push('default', $maliciousPayload);
+    }
+
+    public function test_unserialize_safe_deserialization_blocks_non_job_class_type(): void
+    {
+        $driver = new \Luminus\Queue\Drivers\SyncDriver(new \Luminus\Container());
+        $unallowed = new UnallowedClass();
+        $maliciousPayload = json_encode([
+            'job' => UnallowedClass::class, // Expected class is UnallowedClass (not a subclass of Job)
+            'data' => serialize($unallowed)
+        ]);
+
+        // This should be blocked by the defense-in-depth is_subclass_of() check before unserialize is even called.
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage("Job class must be a subclass of Luminus\Queue\Job");
+        $driver->push('default', $maliciousPayload);
     }
 }
