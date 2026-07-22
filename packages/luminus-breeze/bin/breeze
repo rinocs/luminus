@@ -1,0 +1,9 @@
+#!/usr/bin/env php
+<?php
+
+require __DIR__ . '/../../../vendor/autoload.php';
+
+use Luminus\Breeze\Console\InstallCommand;
+
+$cmd = new InstallCommand();
+exit($cmd->handle($argv));

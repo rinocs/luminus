@@ -37,6 +37,7 @@ nav:
   - Queues: queues.md
   - Async: async.md
   - Security: security.md
+  - Breeze (Auth): breeze.md
   - Docker & Deploy: docker-deploy.md
   - CLI: cli.md
 

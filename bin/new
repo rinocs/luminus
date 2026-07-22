@@ -285,13 +285,68 @@ php -r "
     \$a['autoload']['psr-4']['Luminus\\\\'] = 'src/';
     \$a['autoload']['files'] = ['src/helpers.php'];
     if (isset(\$b['require'])) {
-        \$a['require'] = array_merge(\$a['require'], \$b['require']);
+        \$filtered = array_diff_key(\$b['require'], ['luminus/breeze' => 1]);
+        \$a['require'] = array_merge(\$a['require'], \$filtered);
     }
     file_put_contents('composer.json', json_encode(\$a, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 "
 rm composer.luminus.json
 
 composer dump-autoload 2>&1 | sed 's/^/  /'
+
+# --- Optional Breeze auth scaffolding ---
+BREEZE_INSTALLED=0
+echo ""
+read -p "Install Breeze auth scaffolding? [y/N] " breeze_answer
+if [[ "$breeze_answer" =~ ^[Yy]$ ]]; then
+    echo ""
+    echo -e "${CYAN}Adding Breeze...${NC}"
+
+    php -r "
+        \$c = json_decode(file_get_contents('composer.json'), true);
+        \$c['repositories'] = [
+            ['type' => 'path', 'url' => '$MINIPHP_DIR'],
+            ['type' => 'path', 'url' => '$MINIPHP_DIR/packages/luminus-breeze']
+        ];
+        \$c['require']['luminus/breeze'] = '@dev';
+        \$c['minimum-stability'] = 'dev';
+        \$c['prefer-stable'] = true;
+        file_put_contents('composer.json', json_encode(\$c, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+    "
+
+    composer update --no-interaction 2>&1 | sed 's/^/  /'
+
+    cat > public/index.php <<'PHPEOF'
+<?php
+
+require __DIR__ . '/../vendor/autoload.php';
+
+use Luminus\Breeze\BreezeServiceProvider;
+use Luminus\CsrfMiddleware;
+use Luminus\StartSessionMiddleware;
+
+$app = new Luminus\App();
+$app->loadEnv();
+$app->loadConfig(require __DIR__ . '/../config/app.php');
+
+$app->addMiddleware(new StartSessionMiddleware());
+$app->addMiddleware(new CsrfMiddleware());
+
+$app->registerProviders([
+    BreezeServiceProvider::class,
+]);
+
+$app->loadRoutes(__DIR__ . '/../routes/web.php');
+$app->run();
+PHPEOF
+
+    if [ -f vendor/bin/breeze ]; then
+        php vendor/bin/breeze install 2>&1 | sed 's/^/  /'
+    fi
+
+    BREEZE_INSTALLED=1
+    echo -e "${GREEN}✓${NC} Breeze auth scaffolding installed"
+fi
 
 echo ""
 echo -e "${GREEN}╔══════════════════════════════════════╗${NC}"
@@ -301,4 +356,11 @@ echo ""
 echo -e "  ${CYAN}Project:${NC}  $DIR"
 echo -e "  ${CYAN}Run:${NC}      cd $DIR && make dev"
 echo -e "  ${CYAN}Open:${NC}     http://localhost:8080"
+
+if [ "$BREEZE_INSTALLED" -eq 1 ]; then
+    echo ""
+    echo -e "  ${CYAN}Auth:${NC}    /login  |  /register"
+    echo -e "  ${CYAN}Next:${NC}    php bin/migrate up"
+fi
+
 echo ""
