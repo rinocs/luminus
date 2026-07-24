@@ -54,6 +54,8 @@ class AuthController
 
         if ($password === '') {
             $errors['password'] = 'The password field is required.';
+        } elseif (strlen($password) > 255) {
+            $errors['password'] = 'The password must not exceed 255 characters.';
         }
 
         if (empty($errors)) {
@@ -62,7 +64,11 @@ class AuthController
                 [$email]
             );
 
-            if (!empty($user) && password_verify($password, $user[0]['password'])) {
+            $userExists = !empty($user);
+            // Use a dummy hash if the user does not exist to prevent username enumeration via timing side-channels
+            $hash = $userExists ? $user[0]['password'] : '$2y$10$HgiXnOCgSFHhDj7FyWP3nugaiDRAoLOx/a1Uqem1BNGitTj78DuTG';
+
+            if (password_verify($password, $hash) && $userExists) {
                 Session::regenerate();
                 Session::regenerateToken();
                 Session::put('user_id', $user[0]['id']);
@@ -131,8 +137,8 @@ class AuthController
             $errors['email'] = 'Please provide a valid email address.';
         }
 
-        if (strlen($password) < 8) {
-            $errors['password'] = 'The password must be at least 8 characters.';
+        if (strlen($password) < 8 || strlen($password) > 255) {
+            $errors['password'] = 'The password must be between 8 and 255 characters.';
         }
 
         if ($password !== $passwordConfirmation) {

@@ -306,4 +306,72 @@ class SecurityTest extends TestCase
         $this->assertNotEmpty($newToken);
         $this->assertNotEquals($oldToken, $newToken);
     }
+
+    public function test_login_timing_mitigation_and_password_limits(): void
+    {
+        $appMock = $this->createMock(\Luminus\App::class);
+        $viewMock = $this->createMock(\Luminus\View::class);
+        $dbMock = $this->createMock(\Luminus\Database::class);
+
+        // When queried, user does not exist (empty array returned)
+        $dbMock->method('query')
+            ->willReturn([]);
+
+        $request = new Request(
+            body: [
+                'email' => 'nonexistent@example.com',
+                'password' => 'somepassword',
+            ],
+            server: ['REQUEST_METHOD' => 'POST']
+        );
+
+        $controller = new \Luminus\Breeze\Controllers\AuthController($appMock, $viewMock, $dbMock);
+        $response = $controller->store($request);
+
+        // Should redirect back to /login
+        $this->assertSame(302, $response->getStatusCode());
+
+        $ref = new \ReflectionClass($response);
+        $prop = $ref->getProperty('redirectUrl');
+        $prop->setAccessible(true);
+        $this->assertSame('/login', $prop->getValue($response));
+
+        // Assert that the error is flashed
+        $errors = Session::getFlash('errors', []);
+        $this->assertArrayHasKey('email', $errors);
+        $this->assertSame('These credentials do not match our records.', $errors['email']);
+
+        // Test login password length limit validation
+        $longPassword = str_repeat('a', 256);
+        $requestLong = new Request(
+            body: [
+                'email' => 'test@example.com',
+                'password' => $longPassword,
+            ],
+            server: ['REQUEST_METHOD' => 'POST']
+        );
+
+        $responseLong = $controller->store($requestLong);
+        $this->assertSame(302, $responseLong->getStatusCode());
+        $errorsLong = Session::getFlash('errors', []);
+        $this->assertArrayHasKey('password', $errorsLong);
+        $this->assertSame('The password must not exceed 255 characters.', $errorsLong['password']);
+
+        // Test registration password length limit validation
+        $requestRegLong = new Request(
+            body: [
+                'name' => 'Test User',
+                'email' => 'test@example.com',
+                'password' => $longPassword,
+                'password_confirmation' => $longPassword,
+            ],
+            server: ['REQUEST_METHOD' => 'POST']
+        );
+
+        $responseRegLong = $controller->registerStore($requestRegLong);
+        $this->assertSame(302, $responseRegLong->getStatusCode());
+        $errorsRegLong = Session::getFlash('errors', []);
+        $this->assertArrayHasKey('password', $errorsRegLong);
+        $this->assertSame('The password must be between 8 and 255 characters.', $errorsRegLong['password']);
+    }
 }
