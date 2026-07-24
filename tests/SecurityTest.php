@@ -374,4 +374,38 @@ class SecurityTest extends TestCase
         $this->assertArrayHasKey('password', $errorsRegLong);
         $this->assertSame('The password must be between 8 and 255 characters.', $errorsRegLong['password']);
     }
+
+    public function test_confirm_password_limits(): void
+    {
+        $viewMock = $this->createMock(\Luminus\View::class);
+        $dbMock = $this->createMock(\Luminus\Database::class);
+
+        // Put user_id in Session to bypass guest redirect
+        Session::put('user_id', 1);
+
+        $controller = new \Luminus\Breeze\Controllers\ConfirmablePasswordController($viewMock, $dbMock);
+
+        // Test empty password
+        $requestEmpty = new Request(
+            body: ['password' => ''],
+            server: ['REQUEST_METHOD' => 'POST']
+        );
+        $responseEmpty = $controller->store($requestEmpty);
+        $this->assertSame(302, $responseEmpty->getStatusCode());
+        $errorsEmpty = Session::getFlash('errors', []);
+        $this->assertArrayHasKey('password', $errorsEmpty);
+        $this->assertSame('The password field is required.', $errorsEmpty['password']);
+
+        // Test long password (>255 characters)
+        $longPassword = str_repeat('a', 256);
+        $requestLong = new Request(
+            body: ['password' => $longPassword],
+            server: ['REQUEST_METHOD' => 'POST']
+        );
+        $responseLong = $controller->store($requestLong);
+        $this->assertSame(302, $responseLong->getStatusCode());
+        $errorsLong = Session::getFlash('errors', []);
+        $this->assertArrayHasKey('password', $errorsLong);
+        $this->assertSame('The password must not exceed 255 characters.', $errorsLong['password']);
+    }
 }
