@@ -374,4 +374,59 @@ class SecurityTest extends TestCase
         $this->assertArrayHasKey('password', $errorsRegLong);
         $this->assertSame('The password must be between 8 and 255 characters.', $errorsRegLong['password']);
     }
+
+    public function test_confirm_password_validation_and_timing_mitigation(): void
+    {
+        $viewMock = $this->createMock(\Luminus\View::class);
+        $dbMock = $this->createMock(\Luminus\Database::class);
+
+        $controller = new \Luminus\Breeze\Controllers\ConfirmablePasswordController($viewMock, $dbMock);
+
+        // Scenario 1: Not logged in (no user_id in Session)
+        Session::forget('user_id');
+        $request = new Request(
+            body: ['password' => 'secret'],
+            server: ['REQUEST_METHOD' => 'POST']
+        );
+        $response = $controller->store($request);
+        $this->assertSame(302, $response->getStatusCode());
+
+        $ref = new \ReflectionClass($response);
+        $prop = $ref->getProperty('redirectUrl');
+        $prop->setAccessible(true);
+        $this->assertSame('/login', $prop->getValue($response));
+
+        // Set user_id in Session for remaining scenarios
+        Session::put('user_id', 42);
+
+        // Scenario 2: Password too long (> 255 characters)
+        $longPassword = str_repeat('a', 256);
+        $requestLong = new Request(
+            body: ['password' => $longPassword],
+            server: ['REQUEST_METHOD' => 'POST']
+        );
+        $responseLong = $controller->store($requestLong);
+        $this->assertSame(302, $responseLong->getStatusCode());
+        $this->assertSame('/confirm-password', $prop->getValue($responseLong));
+
+        $errorsLong = Session::getFlash('errors', []);
+        $this->assertArrayHasKey('password', $errorsLong);
+        $this->assertSame('The password must not exceed 255 characters.', $errorsLong['password']);
+
+        // Scenario 3: User doesn't exist in DB (Timing mitigation check)
+        $dbMock->method('query')
+            ->willReturn([]);
+
+        $requestMissing = new Request(
+            body: ['password' => 'somepassword'],
+            server: ['REQUEST_METHOD' => 'POST']
+        );
+        $responseMissing = $controller->store($requestMissing);
+        $this->assertSame(302, $responseMissing->getStatusCode());
+        $this->assertSame('/confirm-password', $prop->getValue($responseMissing));
+
+        $errorsMissing = Session::getFlash('errors', []);
+        $this->assertArrayHasKey('password', $errorsMissing);
+        $this->assertSame('The provided password does not match our records.', $errorsMissing['password']);
+    }
 }
