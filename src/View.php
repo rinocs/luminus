@@ -46,6 +46,25 @@ class View
         }
     }
 
+    /**
+     * Render a template fragment without resolving/wrapping a layout.
+     * Useful for HTMX responses that swap only part of the page.
+     */
+    public function partial(string $template, array $data = []): string
+    {
+        $previousState = [$this->layout, $this->sections, $this->currentSection];
+        $this->layout = null;
+        $this->sections = [];
+        $this->currentSection = '';
+
+        try {
+            return $this->renderFile($template, $data);
+        } finally {
+            // Discard any layout/sections the template may have set.
+            [$this->layout, $this->sections, $this->currentSection] = $previousState;
+        }
+    }
+
     public function layout(string $layout): void
     {
         $this->layout = $layout;

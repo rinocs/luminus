@@ -27,6 +27,7 @@ class ViewTest extends TestCase
         file_put_contents($dir . '/with-layout.php', '<?php $this->layout("layouts.main") ?><?php $this->section("content") ?><p><?= $body ?></p><?php $this->endSection() ?>');
         file_put_contents($dir . '/multi-section.php', '<?php $this->layout("layouts.main") ?><?php $this->section("header") ?><header>H</header><?php $this->endSection() ?><?php $this->section("content") ?><main>M</main><?php $this->endSection() ?>');
         file_put_contents($dir . '/collision.php', '<h1><?= $template ?> / <?= $data ?> / <?= $file ?> / <?= $bufferLevel ?></h1>');
+        file_put_contents($dir . '/partial-with-layout.php', '<?php $this->layout("layouts.main") ?><p>Fragment only</p>');
     }
 
     public function test_render_simple_template(): void
@@ -63,6 +64,24 @@ class ViewTest extends TestCase
     {
         $this->expectException(\RuntimeException::class);
         $this->view->render('nonexistent');
+    }
+
+    public function test_partial_skips_layout(): void
+    {
+        $output = $this->view->partial('partial-with-layout', []);
+
+        $this->assertSame('<p>Fragment only</p>', $output);
+        $this->assertStringNotContainsString('<html>', $output);
+        $this->assertStringNotContainsString('<body>', $output);
+    }
+
+    public function test_partial_does_not_match_full_render_with_layout(): void
+    {
+        $full = $this->view->render('partial-with-layout', []);
+        $partial = $this->view->partial('partial-with-layout', []);
+
+        $this->assertSame('<html><body><p>Fragment only</p></body></html>', $full);
+        $this->assertSame('<p>Fragment only</p>', $partial);
     }
 
     protected function tearDown(): void
