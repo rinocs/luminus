@@ -429,4 +429,26 @@ class SecurityTest extends TestCase
         $this->assertArrayHasKey('password', $errorsMissing);
         $this->assertSame('The provided password does not match our records.', $errorsMissing['password']);
     }
+
+    public function test_hello_route_escapes_input_to_prevent_xss(): void
+    {
+        $container = new \Luminus\Container();
+        $router = new \Luminus\Router($container);
+
+        // Define $router variable to be used when requiring routes
+        require __DIR__ . '/../routes/web.php';
+
+        $request = new Request(
+            server: [
+                'REQUEST_METHOD' => 'GET',
+                'REQUEST_URI' => '/hello/<img src=x onerror=alert(1)>'
+            ]
+        );
+
+        $response = $router->dispatch($request);
+        $body = (string)$response;
+
+        $this->assertStringNotContainsString('<img src=x onerror=alert(1)>', $body);
+        $this->assertStringContainsString('&lt;img src=x onerror=alert(1)&gt;', $body);
+    }
 }

@@ -9,7 +9,7 @@ $router->get('/', function (Request $req, View $view): string {
 });
 
 $router->get('/hello/{name}', function (Request $req, string $name): string {
-    return "<h1>Hello, {$name}!</h1>";
+    return "<h1>Hello, " . e($name) . "!</h1>";
 });
 
 $router->get('/api/ping', function (Request $req, Response $res): Response {
