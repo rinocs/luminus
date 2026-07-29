@@ -429,4 +429,21 @@ class SecurityTest extends TestCase
         $this->assertArrayHasKey('password', $errorsMissing);
         $this->assertSame('The provided password does not match our records.', $errorsMissing['password']);
     }
+
+    public function test_hello_route_escapes_xss(): void
+    {
+        $container = new \Luminus\Container();
+        $container->singleton(\Luminus\Router::class, fn(\Luminus\Container $c) => new \Luminus\Router($c));
+        $router = $container->get(\Luminus\Router::class);
+
+        // Load the actual routes
+        require __DIR__ . '/../routes/web.php';
+
+        $request = new Request(
+            server: ['REQUEST_METHOD' => 'GET', 'REQUEST_URI' => '/hello/<svg onload=alert(1)>']
+        );
+
+        $response = $router->dispatch($request);
+        $this->assertSame('<h1>Hello, &lt;svg onload=alert(1)&gt;!</h1>', (string) $response);
+    }
 }
