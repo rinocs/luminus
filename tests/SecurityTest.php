@@ -429,4 +429,29 @@ class SecurityTest extends TestCase
         $this->assertArrayHasKey('password', $errorsMissing);
         $this->assertSame('The provided password does not match our records.', $errorsMissing['password']);
     }
+
+    public function test_hello_route_escapes_xss(): void
+    {
+        $container = new \Luminus\Container();
+        $container->singleton(\Luminus\Router::class, fn(\Luminus\Container $c) => new \Luminus\Router($c));
+        $router = $container->get(\Luminus\Router::class);
+
+        $router->get('/hello/{name}', function (Request $req, string $name): string {
+            $safeName = e($name);
+            return "<h1>Hello, {$safeName}!</h1>";
+        });
+
+        // Test with a potentially malicious username
+        // Since "/" character is excluded in pattern matcher [^/]+, we use a tag without slashes.
+        $maliciousName = '<img src=x onerror=alert(1)>';
+        $request = new Request(
+            server: ['REQUEST_METHOD' => 'GET', 'REQUEST_URI' => '/hello/' . $maliciousName]
+        );
+
+        $response = $router->dispatch($request);
+        $body = (string) $response;
+
+        $this->assertStringNotContainsString('<img src=x onerror=alert(1)>', $body);
+        $this->assertStringContainsString('&lt;img src=x onerror=alert(1)&gt;', $body);
+    }
 }

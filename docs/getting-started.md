@@ -38,7 +38,8 @@ $router->get('/', function () {
 });
 
 $router->get('/hello/{name}', function (Request $req, string $name): string {
-    return "<h1>Hello, {$name}!</h1>";
+    $safeName = e($name);
+    return "<h1>Hello, {$safeName}!</h1>";
 });
 ```
 
