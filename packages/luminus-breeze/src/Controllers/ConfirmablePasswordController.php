@@ -53,12 +53,22 @@ class ConfirmablePasswordController
 
         $userId = Session::get('user_id');
 
+        // To prevent CPU-exhaustion Denial of Service (DoS) attacks via expensive password-hashing, enforce limit of 255 characters
+        if (strlen($password) > 255) {
+            Session::flash('errors', ['password' => 'The password must not exceed 255 characters.']);
+            return (new Response())->redirect('/confirm-password');
+        }
+
         $user = $this->db->query(
             'SELECT * FROM users WHERE id = ? LIMIT 1',
             [$userId]
         );
 
-        if (empty($user) || !password_verify($password, $user[0]['password'])) {
+        $userExists = !empty($user);
+        // Use a dummy hash if the user does not exist to prevent timing side-channels
+        $hash = $userExists ? $user[0]['password'] : '$2y$10$HgiXnOCgSFHhDj7FyWP3nugaiDRAoLOx/a1Uqem1BNGitTj78DuTG';
+
+        if (!password_verify($password, $hash) || !$userExists) {
             Session::flash('errors', ['password' => 'The provided password does not match our records.']);
             return (new Response())->redirect('/confirm-password');
         }
