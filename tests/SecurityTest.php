@@ -408,4 +408,73 @@ class SecurityTest extends TestCase
         $this->assertArrayHasKey('password', $errorsLong);
         $this->assertSame('The password must not exceed 255 characters.', $errorsLong['password']);
     }
+
+    public function test_x_forwarded_proto_scheme(): void
+    {
+        $request = new Request(
+            server: ['HTTP_X_FORWARDED_PROTO' => 'https']
+        );
+        $this->assertTrue($request->isSecure());
+        $this->assertSame('https', $request->scheme());
+    }
+
+    public function test_strict_transport_security_header(): void
+    {
+        $middleware = new SecurityHeadersMiddleware();
+        $request = new Request(
+            server: ['HTTP_X_FORWARDED_PROTO' => 'https']
+        );
+
+        $response = $middleware->handle($request, function ($req) {
+            return new Response();
+        });
+
+        $ref = new ReflectionClass($response);
+        $prop = $ref->getProperty('headers');
+        $prop->setAccessible(true);
+        $headers = $prop->getValue($response);
+
+        $this->assertArrayHasKey('Strict-Transport-Security', $headers);
+        $this->assertSame('max-age=31536000; includeSubDomains', $headers['Strict-Transport-Security']);
+    }
+
+    public function test_custom_pdo_options_merging(): void
+    {
+        $config = [
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+            'options' => [
+                \PDO::ATTR_PERSISTENT => true,
+            ],
+        ];
+
+        $db = new \Luminus\Database($config);
+        $pdo = $db->connect();
+
+        $this->assertTrue($pdo->getAttribute(\PDO::ATTR_PERSISTENT));
+    }
+
+    public function test_email_length_limit_on_login(): void
+    {
+        $appMock = $this->createMock(\Luminus\App::class);
+        $viewMock = $this->createMock(\Luminus\View::class);
+        $dbMock = $this->createMock(\Luminus\Database::class);
+
+        $longEmail = str_repeat('a', 256) . '@example.com';
+        $request = new Request(
+            body: [
+                'email' => $longEmail,
+                'password' => 'somepassword',
+            ],
+            server: ['REQUEST_METHOD' => 'POST']
+        );
+
+        $controller = new \Luminus\Breeze\Controllers\AuthController($appMock, $viewMock, $dbMock);
+        $response = $controller->store($request);
+
+        $this->assertSame(302, $response->getStatusCode());
+        $errors = Session::getFlash('errors', []);
+        $this->assertArrayHasKey('email', $errors);
+        $this->assertSame('The email must not exceed 255 characters.', $errors['email']);
+    }
 }

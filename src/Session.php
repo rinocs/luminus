@@ -15,6 +15,8 @@ class Session
                 $secure = true;
             } elseif (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443) {
                 $secure = true;
+            } elseif (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https') {
+                $secure = true;
             }
 
             if (php_sapi_name() !== 'cli' && !headers_sent()) {
