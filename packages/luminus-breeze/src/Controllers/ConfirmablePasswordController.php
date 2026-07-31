@@ -39,6 +39,18 @@ class ConfirmablePasswordController
         }
 
         $password = (string) $request->post('password');
+
+        if ($password === '') {
+            Session::flash('errors', ['password' => 'The password field is required.']);
+            return (new Response())->redirect('/confirm-password');
+        }
+
+        // Security: Avoid CPU DoS by limiting password input length before hashing/verification
+        if (strlen($password) > 255) {
+            Session::flash('errors', ['password' => 'The password must not exceed 255 characters.']);
+            return (new Response())->redirect('/confirm-password');
+        }
+
         $userId = Session::get('user_id');
 
         // To prevent CPU-exhaustion Denial of Service (DoS) attacks via expensive password-hashing, enforce limit of 255 characters
