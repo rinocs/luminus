@@ -10,12 +10,8 @@ class Session
     public static function start(): void
     {
         if (session_status() === PHP_SESSION_NONE) {
-            $secure = false;
-            if (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
-                $secure = true;
-            } elseif (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443) {
-                $secure = true;
-            }
+            $request = new Request();
+            $secure = $request->isSecure();
 
             if (php_sapi_name() !== 'cli' && !headers_sent()) {
                 session_start([
