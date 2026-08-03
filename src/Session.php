@@ -15,6 +15,27 @@ class Session
                 $secure = true;
             } elseif (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443) {
                 $secure = true;
+            } else {
+                // Support secure request and session cookie handling behind trusted proxies
+                $trustProxies = $_ENV['TRUST_PROXIES'] ?? getenv('TRUST_PROXIES') ?: null;
+                if ($trustProxies) {
+                    $remoteAddr = $_SERVER['REMOTE_ADDR'] ?? '';
+                    $trusted = false;
+                    if ($trustProxies === '*') {
+                        $trusted = true;
+                    } else {
+                        $proxies = array_map('trim', explode(',', $trustProxies));
+                        if (in_array($remoteAddr, $proxies, true)) {
+                            $trusted = true;
+                        }
+                    }
+                    if ($trusted) {
+                        $proto = $_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '';
+                        if (strtolower($proto) === 'https') {
+                            $secure = true;
+                        }
+                    }
+                }
             }
 
             if (php_sapi_name() !== 'cli' && !headers_sent()) {
