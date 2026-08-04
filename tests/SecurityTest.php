@@ -408,4 +408,78 @@ class SecurityTest extends TestCase
         $this->assertArrayHasKey('password', $errorsLong);
         $this->assertSame('The password must not exceed 255 characters.', $errorsLong['password']);
     }
+
+    public function test_reverse_proxy_ssl_detection(): void
+    {
+        // 1. Without TRUST_PROXIES, X-Forwarded-Proto should be ignored
+        unset($_ENV['TRUST_PROXIES']);
+        putenv('TRUST_PROXIES'); // Clear environment
+
+        $request = new Request(
+            server: [
+                'REQUEST_METHOD' => 'GET',
+                'REQUEST_URI' => '/',
+                'REMOTE_ADDR' => '127.0.0.1',
+                'HTTP_X_FORWARDED_PROTO' => 'https',
+            ]
+        );
+        $this->assertFalse($request->isSecure());
+        $this->assertSame('http', $request->scheme());
+
+        // 2. With TRUST_PROXIES = '*' and X-Forwarded-Proto = 'https'
+        $_ENV['TRUST_PROXIES'] = '*';
+        $requestSecure = new Request(
+            server: [
+                'REQUEST_METHOD' => 'GET',
+                'REQUEST_URI' => '/',
+                'REMOTE_ADDR' => '192.168.1.50',
+                'HTTP_X_FORWARDED_PROTO' => 'https',
+            ]
+        );
+        $this->assertTrue($requestSecure->isSecure());
+        $this->assertSame('https', $requestSecure->scheme());
+
+        // 3. With TRUST_PROXIES = '*' and X-Forwarded-Proto = 'http'
+        $requestInsecure = new Request(
+            server: [
+                'REQUEST_METHOD' => 'GET',
+                'REQUEST_URI' => '/',
+                'REMOTE_ADDR' => '192.168.1.50',
+                'HTTP_X_FORWARDED_PROTO' => 'http',
+            ]
+        );
+        $this->assertFalse($requestInsecure->isSecure());
+        $this->assertSame('http', $requestInsecure->scheme());
+
+        // 4. With TRUST_PROXIES set to specific IPs
+        $_ENV['TRUST_PROXIES'] = '127.0.0.1, 10.0.0.1';
+
+        // Trusted proxy IP
+        $requestTrusted = new Request(
+            server: [
+                'REQUEST_METHOD' => 'GET',
+                'REQUEST_URI' => '/',
+                'REMOTE_ADDR' => '10.0.0.1',
+                'HTTP_X_FORWARDED_PROTO' => 'https',
+            ]
+        );
+        $this->assertTrue($requestTrusted->isSecure());
+        $this->assertSame('https', $requestTrusted->scheme());
+
+        // Untrusted proxy IP
+        $requestUntrusted = new Request(
+            server: [
+                'REQUEST_METHOD' => 'GET',
+                'REQUEST_URI' => '/',
+                'REMOTE_ADDR' => '192.168.1.1',
+                'HTTP_X_FORWARDED_PROTO' => 'https',
+            ]
+        );
+        $this->assertFalse($requestUntrusted->isSecure());
+        $this->assertSame('http', $requestUntrusted->scheme());
+
+        // Clean up environment
+        unset($_ENV['TRUST_PROXIES']);
+        putenv('TRUST_PROXIES');
+    }
 }

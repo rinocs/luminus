@@ -126,6 +126,28 @@ class Request
         ) {
             return 'https';
         }
+
+        $trustProxies = $_ENV['TRUST_PROXIES'] ?? getenv('TRUST_PROXIES') ?? '';
+        if ($trustProxies !== '') {
+            $remoteAddr = $this->server['REMOTE_ADDR'] ?? '';
+            $isTrusted = false;
+            if ($trustProxies === '*') {
+                $isTrusted = true;
+            } else {
+                $trustedList = array_map('trim', explode(',', $trustProxies));
+                if ($remoteAddr !== '' && in_array($remoteAddr, $trustedList, true)) {
+                    $isTrusted = true;
+                }
+            }
+
+            if ($isTrusted) {
+                $forwardedProto = $this->header('X-Forwarded-Proto');
+                if (is_string($forwardedProto) && strtolower($forwardedProto) === 'https') {
+                    return 'https';
+                }
+            }
+        }
+
         return 'http';
     }
 
