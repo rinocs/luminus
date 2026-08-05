@@ -195,6 +195,84 @@ class SecurityTest extends TestCase
         $this->assertSame('strict-origin-when-cross-origin', $headers['Referrer-Policy']);
     }
 
+    public function test_request_scheme_detects_http_x_forwarded_proto_with_trusted_proxies(): void
+    {
+        // 1. Untrusted: TRUST_PROXIES is not set, so HTTP_X_FORWARDED_PROTO is ignored.
+        putenv('TRUST_PROXIES'); // Clear env
+        unset($_ENV['TRUST_PROXIES']);
+
+        $request = new Request(
+            server: ['HTTP_X_FORWARDED_PROTO' => 'https']
+        );
+        $this->assertFalse($request->isSecure());
+        $this->assertSame('http', $request->scheme());
+
+        // 2. Trusted all: TRUST_PROXIES is '*'
+        putenv('TRUST_PROXIES=*');
+        $_ENV['TRUST_PROXIES'] = '*';
+        $requestTrustedAll = new Request(
+            server: ['HTTP_X_FORWARDED_PROTO' => 'https']
+        );
+        $this->assertTrue($requestTrustedAll->isSecure());
+        $this->assertSame('https', $requestTrustedAll->scheme());
+
+        // 3. Trusted IP match: TRUST_PROXIES has '10.0.0.1' and REMOTE_ADDR matches
+        putenv('TRUST_PROXIES=127.0.0.1, 10.0.0.1');
+        $_ENV['TRUST_PROXIES'] = '127.0.0.1, 10.0.0.1';
+        $requestIpMatch = new Request(
+            server: [
+                'HTTP_X_FORWARDED_PROTO' => 'https',
+                'REMOTE_ADDR' => '10.0.0.1'
+            ]
+        );
+        $this->assertTrue($requestIpMatch->isSecure());
+        $this->assertSame('https', $requestIpMatch->scheme());
+
+        // 4. Trusted IP mismatch: TRUST_PROXIES has '10.0.0.1' but REMOTE_ADDR is '1.2.3.4'
+        $requestIpMismatch = new Request(
+            server: [
+                'HTTP_X_FORWARDED_PROTO' => 'https',
+                'REMOTE_ADDR' => '1.2.3.4'
+            ]
+        );
+        $this->assertFalse($requestIpMismatch->isSecure());
+        $this->assertSame('http', $requestIpMismatch->scheme());
+
+        // Clean up
+        putenv('TRUST_PROXIES');
+        unset($_ENV['TRUST_PROXIES']);
+    }
+
+    public function test_security_headers_middleware_appends_hsts_on_secure_requests(): void
+    {
+        $middleware = new SecurityHeadersMiddleware();
+
+        // Non-secure request
+        $request = new Request();
+        $response = $middleware->handle($request, function ($req) {
+            return new Response();
+        });
+
+        $ref = new ReflectionClass($response);
+        $prop = $ref->getProperty('headers');
+        $prop->setAccessible(true);
+        $headers = $prop->getValue($response);
+
+        $this->assertArrayNotHasKey('Strict-Transport-Security', $headers);
+
+        // Secure request
+        $secureRequest = new Request(
+            server: ['HTTPS' => 'on']
+        );
+        $secureResponse = $middleware->handle($secureRequest, function ($req) {
+            return new Response();
+        });
+
+        $headersSecure = $prop->getValue($secureResponse);
+        $this->assertArrayHasKey('Strict-Transport-Security', $headersSecure);
+        $this->assertSame('max-age=31536000; includeSubDomains', $headersSecure['Strict-Transport-Security']);
+    }
+
     public function test_request_cookie(): void
     {
         $request = new Request(cookies: ['session_id' => '12345']);
