@@ -123,6 +123,7 @@ class Request
         if (
             (!empty($this->server['HTTPS']) && $this->server['HTTPS'] !== 'off')
             || ($this->server['SERVER_PORT'] ?? 80) == 443
+            || (isset($this->server['HTTP_X_FORWARDED_PROTO']) && strtolower($this->server['HTTP_X_FORWARDED_PROTO']) === 'https')
         ) {
             return 'https';
         }

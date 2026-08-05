@@ -50,6 +50,8 @@ class AuthController
 
         if ($email === '') {
             $errors['email'] = 'The email field is required.';
+        } elseif (strlen($email) > 255) {
+            $errors['email'] = 'The email must not exceed 255 characters.';
         }
 
         if ($password === '') {

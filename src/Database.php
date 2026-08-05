@@ -32,15 +32,21 @@ class Database
                 );
             }
 
+            $options = [
+                \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION,
+                \PDO::ATTR_DEFAULT_FETCH_MODE => \PDO::FETCH_ASSOC,
+                \PDO::ATTR_EMULATE_PREPARES => false,
+            ];
+
+            if (isset($this->config['options']) && is_array($this->config['options'])) {
+                $options = array_replace($options, $this->config['options']);
+            }
+
             $this->pdo = new \PDO(
                 $dsn,
                 $this->config['username'] ?? null,
                 $this->config['password'] ?? null,
-                [
-                    \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION,
-                    \PDO::ATTR_DEFAULT_FETCH_MODE => \PDO::FETCH_ASSOC,
-                    \PDO::ATTR_EMULATE_PREPARES => false,
-                ]
+                $options
             );
         }
 
