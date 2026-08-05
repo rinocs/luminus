@@ -120,34 +120,47 @@ class Request
 
     public function scheme(): string
     {
+        if ($this->isSecureConnection()) {
+            return 'https';
+        }
+        return 'http';
+    }
+
+    private function isSecureConnection(): bool
+    {
+        // 1. Check direct SSL connection
         if (
             (!empty($this->server['HTTPS']) && $this->server['HTTPS'] !== 'off')
             || ($this->server['SERVER_PORT'] ?? 80) == 443
             || (isset($this->server['HTTP_X_FORWARDED_PROTO']) && strtolower($this->server['HTTP_X_FORWARDED_PROTO']) === 'https')
         ) {
-            return 'https';
+            return true;
         }
 
-        $trustProxies = env('TRUST_PROXIES');
+        // 2. Check trusted proxy and X-Forwarded-Proto
+        $trustProxies = $_ENV['TRUST_PROXIES'] ?? getenv('TRUST_PROXIES') ?: null;
         if ($trustProxies) {
-            $isTrusted = false;
-            $clientIp = $this->server['REMOTE_ADDR'] ?? '';
+            $remoteAddr = $this->server['REMOTE_ADDR'] ?? '';
+            $trusted = false;
 
-            if ($trustProxies === true || $trustProxies === '*' || $trustProxies === 'true') {
-                $isTrusted = true;
-            } elseif (is_string($trustProxies) && $clientIp !== '') {
-                $trustedIps = array_map('trim', explode(',', $trustProxies));
-                if (in_array($clientIp, $trustedIps, true)) {
-                    $isTrusted = true;
+            if ($trustProxies === '*') {
+                $trusted = true;
+            } else {
+                $proxies = array_map('trim', explode(',', $trustProxies));
+                if (in_array($remoteAddr, $proxies, true)) {
+                    $trusted = true;
                 }
             }
 
-            if ($isTrusted && !empty($this->server['HTTP_X_FORWARDED_PROTO']) && strtolower($this->server['HTTP_X_FORWARDED_PROTO']) === 'https') {
-                return 'https';
+            if ($trusted) {
+                $proto = $this->header('X-Forwarded-Proto');
+                if (is_string($proto) && strtolower($proto) === 'https') {
+                    return true;
+                }
             }
         }
 
-        return 'http';
+        return false;
     }
 
     public function host(): string

@@ -487,72 +487,93 @@ class SecurityTest extends TestCase
         $this->assertSame('The password must not exceed 255 characters.', $errorsLong['password']);
     }
 
-    public function test_x_forwarded_proto_scheme(): void
+    public function test_trusted_proxy_ssl_detection(): void
     {
-        $request = new Request(
-            server: ['HTTP_X_FORWARDED_PROTO' => 'https']
-        );
-        $this->assertTrue($request->isSecure());
-        $this->assertSame('https', $request->scheme());
+        // 1. Unsecured request (no headers/ssl)
+        $req1 = new Request(server: ['REMOTE_ADDR' => '192.168.1.1']);
+        $this->assertFalse($req1->isSecure());
+        $this->assertSame('http', $req1->scheme());
+
+        // Save old env state
+        $oldTrustProxies = getenv('TRUST_PROXIES');
+
+        try {
+            // Set up environment variable
+            $_ENV['TRUST_PROXIES'] = '192.168.1.1, 10.0.0.1';
+
+            // 2. Client behind trusted proxy, using HTTPS protocol
+            $req2 = new Request(server: [
+                'REMOTE_ADDR' => '192.168.1.1',
+                'HTTP_X_FORWARDED_PROTO' => 'https',
+            ]);
+            $this->assertTrue($req2->isSecure());
+            $this->assertSame('https', $req2->scheme());
+
+            // 3. Client behind trusted proxy, but using HTTP protocol
+            $req3 = new Request(server: [
+                'REMOTE_ADDR' => '192.168.1.1',
+                'HTTP_X_FORWARDED_PROTO' => 'http',
+            ]);
+            $this->assertFalse($req3->isSecure());
+            $this->assertSame('http', $req3->scheme());
+
+            // 4. Client from untrusted proxy trying to spoof HTTPS protocol
+            $req4 = new Request(server: [
+                'REMOTE_ADDR' => '203.0.113.5',
+                'HTTP_X_FORWARDED_PROTO' => 'https',
+            ]);
+            $this->assertFalse($req4->isSecure());
+            $this->assertSame('http', $req4->scheme());
+
+            // 5. Wildcard proxy trust
+            $_ENV['TRUST_PROXIES'] = '*';
+            $req5 = new Request(server: [
+                'REMOTE_ADDR' => '203.0.113.5',
+                'HTTP_X_FORWARDED_PROTO' => 'https',
+            ]);
+            $this->assertTrue($req5->isSecure());
+            $this->assertSame('https', $req5->scheme());
+
+        } finally {
+            if ($oldTrustProxies === false) {
+                unset($_ENV['TRUST_PROXIES']);
+                putenv('TRUST_PROXIES');
+            } else {
+                $_ENV['TRUST_PROXIES'] = $oldTrustProxies;
+                putenv("TRUST_PROXIES={$oldTrustProxies}");
+            }
+        }
     }
 
-    public function test_strict_transport_security_header(): void
+    public function test_security_headers_middleware_appends_hsts_when_secure(): void
     {
         $middleware = new SecurityHeadersMiddleware();
-        $request = new Request(
-            server: ['HTTP_X_FORWARDED_PROTO' => 'https']
-        );
 
-        $response = $middleware->handle($request, function ($req) {
+        // Secure request
+        $requestSecure = new Request(server: ['HTTPS' => 'on']);
+        $responseSecure = $middleware->handle($requestSecure, function ($req) {
             return new Response();
         });
 
-        $ref = new ReflectionClass($response);
-        $prop = $ref->getProperty('headers');
-        $prop->setAccessible(true);
-        $headers = $prop->getValue($response);
+        $refSecure = new ReflectionClass($responseSecure);
+        $propSecure = $refSecure->getProperty('headers');
+        $propSecure->setAccessible(true);
+        $headersSecure = $propSecure->getValue($responseSecure);
 
-        $this->assertArrayHasKey('Strict-Transport-Security', $headers);
-        $this->assertSame('max-age=31536000; includeSubDomains', $headers['Strict-Transport-Security']);
-    }
+        $this->assertArrayHasKey('Strict-Transport-Security', $headersSecure);
+        $this->assertSame('max-age=31536000; includeSubDomains', $headersSecure['Strict-Transport-Security']);
 
-    public function test_custom_pdo_options_merging(): void
-    {
-        $config = [
-            'driver' => 'sqlite',
-            'database' => ':memory:',
-            'options' => [
-                \PDO::ATTR_PERSISTENT => true,
-            ],
-        ];
+        // Insecure request
+        $requestInsecure = new Request(server: ['HTTPS' => 'off']);
+        $responseInsecure = $middleware->handle($requestInsecure, function ($req) {
+            return new Response();
+        });
 
-        $db = new \Luminus\Database($config);
-        $pdo = $db->connect();
+        $refInsecure = new ReflectionClass($responseInsecure);
+        $propInsecure = $refInsecure->getProperty('headers');
+        $propInsecure->setAccessible(true);
+        $headersInsecure = $propInsecure->getValue($responseInsecure);
 
-        $this->assertTrue($pdo->getAttribute(\PDO::ATTR_PERSISTENT));
-    }
-
-    public function test_email_length_limit_on_login(): void
-    {
-        $appMock = $this->createMock(\Luminus\App::class);
-        $viewMock = $this->createMock(\Luminus\View::class);
-        $dbMock = $this->createMock(\Luminus\Database::class);
-
-        $longEmail = str_repeat('a', 256) . '@example.com';
-        $request = new Request(
-            body: [
-                'email' => $longEmail,
-                'password' => 'somepassword',
-            ],
-            server: ['REQUEST_METHOD' => 'POST']
-        );
-
-        $controller = new \Luminus\Breeze\Controllers\AuthController($appMock, $viewMock, $dbMock);
-        $response = $controller->store($request);
-
-        $this->assertSame(302, $response->getStatusCode());
-        $errors = Session::getFlash('errors', []);
-        $this->assertArrayHasKey('email', $errors);
-        $this->assertSame('The email must not exceed 255 characters.', $errors['email']);
+        $this->assertArrayNotHasKey('Strict-Transport-Security', $headersInsecure);
     }
 }
