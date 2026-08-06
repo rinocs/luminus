@@ -69,6 +69,11 @@ class ConfirmablePasswordController
 
         Session::put('auth_password_confirmed_at', time());
 
-        return (new Response())->redirect(Session::getFlash('intended', '/'));
+        $intended = Session::getFlash('intended', '/');
+        $response = new Response();
+        if (method_exists($response, 'safeRedirect')) {
+            return $response->safeRedirect($intended);
+        }
+        return $response->redirect($intended);
     }
 }

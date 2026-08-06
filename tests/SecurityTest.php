@@ -576,4 +576,44 @@ class SecurityTest extends TestCase
 
         $this->assertArrayNotHasKey('Strict-Transport-Security', $headersInsecure);
     }
+
+    public function test_auth_controller_prevents_open_redirect(): void
+    {
+        // Place malicious URL in 'intended' flash session
+        Session::flash('intended', 'http://evil.com/steal-credentials');
+
+        $appMock = $this->createMock(\Luminus\App::class);
+        $viewMock = $this->createMock(\Luminus\View::class);
+        $dbMock = $this->createMock(\Luminus\Database::class);
+
+        $dbMock->method('query')
+            ->willReturn([
+                [
+                    'id' => 1,
+                    'email' => 'user@example.com',
+                    'name' => 'John Doe',
+                    'password' => password_hash('password123', PASSWORD_BCRYPT),
+                ]
+            ]);
+
+        $request = new Request(
+            body: [
+                'email' => 'user@example.com',
+                'password' => 'password123',
+            ],
+            server: ['REQUEST_METHOD' => 'POST']
+        );
+
+        $controller = new \Luminus\Breeze\Controllers\AuthController($appMock, $viewMock, $dbMock);
+        $response = $controller->store($request);
+
+        $this->assertSame(302, $response->getStatusCode());
+
+        $ref = new ReflectionClass($response);
+        $prop = $ref->getProperty('redirectUrl');
+        $prop->setAccessible(true);
+
+        // Assert that we fallback to '/' instead of redirecting to evil.com
+        $this->assertSame('/', $prop->getValue($response));
+    }
 }

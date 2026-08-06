@@ -43,6 +43,45 @@ class Response
         return $this;
     }
 
+    /**
+     * Set a redirect response, ensuring the URL is safe (local/same-origin) to prevent Open Redirect vulnerabilities.
+     */
+    public function safeRedirect(string $url, string $default = '/', int $status = 302): static
+    {
+        if ($this->isSafeUrl($url)) {
+            return $this->redirect($url, $status);
+        }
+        return $this->redirect($default, $status);
+    }
+
+    /**
+     * Determine if a redirect URL is local and safe (prevents Open Redirect).
+     */
+    public function isSafeUrl(string $url): bool
+    {
+        if ($url === '') {
+            return false;
+        }
+
+        // Must start with '/' but not '//' or '/\' or '/ ' (which could indicate a protocol-relative URL)
+        if (str_starts_with($url, '/')) {
+            return !str_starts_with($url, '//') && !str_starts_with($url, '/\\') && !str_starts_with($url, '/ ');
+        }
+
+        // If it is an absolute URL, check if it matches the current application host
+        $appUrl = $_ENV['APP_URL'] ?? getenv('APP_URL') ?: '';
+        if ($appUrl !== '') {
+            $appHost = parse_url($appUrl, PHP_URL_HOST);
+            $redirectHost = parse_url($url, PHP_URL_HOST);
+
+            if ($appHost && $redirectHost && strtolower($appHost) === strtolower($redirectHost)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public function cookie(
         string $name,
         string $value = '',
