@@ -81,7 +81,12 @@ class AuthController
                     // Remember-me logic can be added by the consuming app
                 }
 
-                return (new Response())->redirect(Session::getFlash('intended', '/'));
+                $intended = Session::getFlash('intended', '/');
+                $response = new Response();
+                if (method_exists($response, 'safeRedirect')) {
+                    return $response->safeRedirect($intended);
+                }
+                return $response->redirect($intended);
             }
 
             $errors['email'] = 'These credentials do not match our records.';
