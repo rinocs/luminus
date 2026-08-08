@@ -48,6 +48,25 @@ class AuthController
 
         $errors = [];
 
+        $throttleKey = '';
+        if ($email !== '') {
+            $throttleKey = 'login_throttle_' . md5($email);
+            $lockedAt = Session::get($throttleKey . '_locked_at', 0);
+            $attempts = Session::get($throttleKey . '_attempts', 0);
+
+            if ($attempts >= 5) {
+                if ((time() - $lockedAt) < 60) {
+                    $seconds = 60 - (time() - $lockedAt);
+                    Session::flash('errors', ['email' => "Too many login attempts. Please try again in {$seconds} seconds."]);
+                    Session::flash('old', compact('email', 'remember'));
+                    return (new Response())->redirect('/login');
+                } else {
+                    Session::forget($throttleKey . '_attempts');
+                    Session::forget($throttleKey . '_locked_at');
+                }
+            }
+        }
+
         if ($email === '') {
             $errors['email'] = 'The email field is required.';
         } elseif (strlen($email) > 255) {
@@ -71,6 +90,10 @@ class AuthController
             $hash = $userExists ? $user[0]['password'] : '$2y$10$HgiXnOCgSFHhDj7FyWP3nugaiDRAoLOx/a1Uqem1BNGitTj78DuTG';
 
             if (password_verify($password, $hash) && $userExists) {
+                if ($throttleKey !== '') {
+                    Session::forget($throttleKey . '_attempts');
+                    Session::forget($throttleKey . '_locked_at');
+                }
                 Session::regenerate();
                 Session::regenerateToken();
                 Session::put('user_id', $user[0]['id']);
@@ -89,6 +112,13 @@ class AuthController
                 return $response->redirect($intended);
             }
 
+            if ($throttleKey !== '') {
+                $attempts = Session::get($throttleKey . '_attempts', 0) + 1;
+                Session::put($throttleKey . '_attempts', $attempts);
+                if ($attempts >= 5) {
+                    Session::put($throttleKey . '_locked_at', time());
+                }
+            }
             $errors['email'] = 'These credentials do not match our records.';
         }
 
