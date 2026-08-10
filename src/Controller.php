@@ -35,6 +35,19 @@ class Controller
     }
 
     /**
+     * Tell HTMX to perform a client-side redirect, ensuring the URL is safe to prevent Open Redirect.
+     */
+    protected function safeHtmxRedirect(string $url, string $default = '/'): Response
+    {
+        $response = new Response();
+        $safeUrl = $response->isSafeUrl($url) ? $url : $default;
+
+        return $response
+            ->status(200)
+            ->header('HX-Redirect', $safeUrl);
+    }
+
+    /**
      * Append an out-of-band HTMX flash message to the response body.
      */
     protected function withFlash(Response $response, string $msg): Response
