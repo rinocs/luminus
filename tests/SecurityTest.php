@@ -487,6 +487,70 @@ class SecurityTest extends TestCase
         $this->assertSame('The password must not exceed 255 characters.', $errorsLong['password']);
     }
 
+    public function test_confirm_password_rate_limiting(): void
+    {
+        $viewMock = $this->createMock(\Luminus\View::class);
+        $dbMock = $this->createMock(\Luminus\Database::class);
+
+        // Put user_id in Session to bypass guest redirect
+        Session::put('user_id', 42);
+
+        // Mock a query that always returns empty (failed credentials)
+        $dbMock->method('query')
+            ->willReturn([]);
+
+        $throttleKey = 'confirm_password_throttle_' . md5('42');
+
+        $controller = new \Luminus\Breeze\Controllers\ConfirmablePasswordController($viewMock, $dbMock);
+
+        // Attempt 1 to 4: Standard failure redirect to /confirm-password
+        for ($i = 1; $i <= 4; $i++) {
+            $request = new Request(
+                body: ['password' => 'wrongpass'],
+                server: ['REQUEST_METHOD' => 'POST']
+            );
+            $response = $controller->store($request);
+            $this->assertSame(302, $response->getStatusCode());
+            $this->assertSame($i, Session::get($throttleKey . '_attempts'));
+            $this->assertNull(Session::get($throttleKey . '_locked_at'));
+        }
+
+        // Attempt 5: Reaches the limit, sets lockout
+        $request5 = new Request(
+            body: ['password' => 'wrongpass'],
+            server: ['REQUEST_METHOD' => 'POST']
+        );
+        $response5 = $controller->store($request5);
+        $this->assertSame(302, $response5->getStatusCode());
+        $this->assertSame(5, Session::get($throttleKey . '_attempts'));
+        $this->assertNotNull(Session::get($throttleKey . '_locked_at'));
+
+        // Attempt 6: Immediately blocked/throttled without query or hashing
+        $request6 = new Request(
+            body: ['password' => 'wrongpass'],
+            server: ['REQUEST_METHOD' => 'POST']
+        );
+        $response6 = $controller->store($request6);
+        $this->assertSame(302, $response6->getStatusCode());
+
+        $errors = Session::getFlash('errors', []);
+        $this->assertArrayHasKey('password', $errors);
+        $this->assertStringContainsString('Too many confirmation attempts', $errors['password']);
+
+        // Test lockout expiration bypass (e.g. simulating 61 seconds later)
+        Session::put($throttleKey . '_locked_at', time() - 61);
+
+        $request7 = new Request(
+            body: ['password' => 'wrongpass'],
+            server: ['REQUEST_METHOD' => 'POST']
+        );
+        $response7 = $controller->store($request7);
+        $this->assertSame(302, $response7->getStatusCode());
+
+        // The attempts counter should be reset back to 1
+        $this->assertSame(1, Session::get($throttleKey . '_attempts'));
+    }
+
     public function test_trusted_proxy_ssl_detection(): void
     {
         // 1. Unsecured request (no headers/ssl)
