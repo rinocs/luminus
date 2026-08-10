@@ -616,4 +616,67 @@ class SecurityTest extends TestCase
         // Assert that we fallback to '/' instead of redirecting to evil.com
         $this->assertSame('/', $prop->getValue($response));
     }
+
+    public function test_login_rate_limiting(): void
+    {
+        $appMock = $this->createMock(\Luminus\App::class);
+        $viewMock = $this->createMock(\Luminus\View::class);
+        $dbMock = $this->createMock(\Luminus\Database::class);
+
+        // Mock a query that always returns empty (failed credentials)
+        $dbMock->method('query')
+            ->willReturn([]);
+
+        $email = 'bruteforce@example.com';
+        $throttleKey = 'login_throttle_' . md5($email);
+
+        $controller = new \Luminus\Breeze\Controllers\AuthController($appMock, $viewMock, $dbMock);
+
+        // Attempt 1 to 4: Standard failure redirect to /login
+        for ($i = 1; $i <= 4; $i++) {
+            $request = new Request(
+                body: ['email' => $email, 'password' => 'wrongpass'],
+                server: ['REQUEST_METHOD' => 'POST']
+            );
+            $response = $controller->store($request);
+            $this->assertSame(302, $response->getStatusCode());
+            $this->assertSame($i, Session::get($throttleKey . '_attempts'));
+            $this->assertNull(Session::get($throttleKey . '_locked_at'));
+        }
+
+        // Attempt 5: Reaches the limit, sets lockout
+        $request5 = new Request(
+            body: ['email' => $email, 'password' => 'wrongpass'],
+            server: ['REQUEST_METHOD' => 'POST']
+        );
+        $response5 = $controller->store($request5);
+        $this->assertSame(302, $response5->getStatusCode());
+        $this->assertSame(5, Session::get($throttleKey . '_attempts'));
+        $this->assertNotNull(Session::get($throttleKey . '_locked_at'));
+
+        // Attempt 6: Immediately blocked/throttled without query or hashing
+        $request6 = new Request(
+            body: ['email' => $email, 'password' => 'wrongpass'],
+            server: ['REQUEST_METHOD' => 'POST']
+        );
+        $response6 = $controller->store($request6);
+        $this->assertSame(302, $response6->getStatusCode());
+
+        $errors = Session::getFlash('errors', []);
+        $this->assertArrayHasKey('email', $errors);
+        $this->assertStringContainsString('Too many login attempts', $errors['email']);
+
+        // Test lockout expiration bypass (e.g. simulating 61 seconds later)
+        Session::put($throttleKey . '_locked_at', time() - 61);
+
+        $request7 = new Request(
+            body: ['email' => $email, 'password' => 'wrongpass'],
+            server: ['REQUEST_METHOD' => 'POST']
+        );
+        $response7 = $controller->store($request7);
+        $this->assertSame(302, $response7->getStatusCode());
+
+        // The attempts counter should be reset back to 1
+        $this->assertSame(1, Session::get($throttleKey . '_attempts'));
+    }
 }
