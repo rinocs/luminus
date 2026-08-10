@@ -47,6 +47,11 @@ class ControllerTest extends TestCase
                 return $this->htmxRedirect($url);
             }
 
+            public function safeHtmxRedirectPublic(string $url, string $default = '/'): Response
+            {
+                return $this->safeHtmxRedirect($url, $default);
+            }
+
             public function withFlashPublic(Response $response, string $msg): Response
             {
                 return $this->withFlash($response, $msg);
@@ -110,6 +115,41 @@ class ControllerTest extends TestCase
         $this->assertStringContainsString('id="flash"', $body);
         $this->assertStringContainsString('hx-swap-oob="true"', $body);
         $this->assertStringContainsString('Saved!', $body);
+    }
+
+    public function test_safe_htmx_redirect_allows_safe_url(): void
+    {
+        $request = new Request();
+        $controller = $this->makeController($request);
+
+        $response = $controller->safeHtmxRedirectPublic('/dashboard');
+
+        $this->assertSame(200, $response->getStatusCode());
+
+        $ref = new ReflectionClass($response);
+        $prop = $ref->getProperty('headers');
+        $prop->setAccessible(true);
+        $headers = $prop->getValue($response);
+
+        $this->assertSame('/dashboard', $headers['HX-Redirect']);
+    }
+
+    public function test_safe_htmx_redirect_filters_unsafe_url_to_default(): void
+    {
+        $request = new Request();
+        $controller = $this->makeController($request);
+
+        // Try an unsafe external URL
+        $response = $controller->safeHtmxRedirectPublic('http://evil.com/steal-credentials', '/fallback');
+
+        $this->assertSame(200, $response->getStatusCode());
+
+        $ref = new ReflectionClass($response);
+        $prop = $ref->getProperty('headers');
+        $prop->setAccessible(true);
+        $headers = $prop->getValue($response);
+
+        $this->assertSame('/fallback', $headers['HX-Redirect']);
     }
 
     private function rmdirRecursive(string $dir): void
