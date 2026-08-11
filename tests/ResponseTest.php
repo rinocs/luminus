@@ -128,6 +128,10 @@ class ResponseTest extends TestCase
         $this->assertFalse($this->response->isSafeUrl('//evil.com'));
         $this->assertFalse($this->response->isSafeUrl('/\\evil.com'));
         $this->assertFalse($this->response->isSafeUrl('/ evil.com'));
+        $this->assertFalse($this->response->isSafeUrl('/' . "\t" . 'evil.com'));
+        $this->assertFalse($this->response->isSafeUrl('/' . "\n" . 'evil.com'));
+        $this->assertFalse($this->response->isSafeUrl('/' . "\r" . 'evil.com'));
+        $this->assertFalse($this->response->isSafeUrl('\\evil.com'));
 
         // 3. Absolute URLs matching APP_URL config
         $oldAppUrl = $_ENV['APP_URL'] ?? getenv('APP_URL') ?: '';
@@ -135,7 +139,7 @@ class ResponseTest extends TestCase
 
         try {
             $this->assertTrue($this->response->isSafeUrl('http://localhost:8080/dashboard'));
-            $this->assertTrue($this->response->isSafeUrl('https://localhost:8080/home'));
+            $this->assertFalse($this->response->isSafeUrl('https://localhost:8080/home')); // Mismatched scheme (http vs https)
             $this->assertFalse($this->response->isSafeUrl('http://evil.com/dashboard'));
         } finally {
             if ($oldAppUrl !== '') {
