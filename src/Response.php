@@ -63,19 +63,24 @@ class Response
             return false;
         }
 
-        // Must start with '/' but not '//' or '/\' or '/ ' (which could indicate a protocol-relative URL)
+        // Must start with '/' but not '//' or '/\' or '/' followed by whitespace or control chars
         if (str_starts_with($url, '/')) {
-            return !str_starts_with($url, '//') && !str_starts_with($url, '/\\') && !str_starts_with($url, '/ ');
+            return !str_starts_with($url, '//')
+                && !str_starts_with($url, '/\\')
+                && !preg_match('#^/[\s\x00-\x1f]#', $url);
         }
 
-        // If it is an absolute URL, check if it matches the current application host
+        // If it is an absolute URL, check if it matches the current application host and scheme
         $appUrl = $_ENV['APP_URL'] ?? getenv('APP_URL') ?: '';
         if ($appUrl !== '') {
+            $appScheme = parse_url($appUrl, PHP_URL_SCHEME);
             $appHost = parse_url($appUrl, PHP_URL_HOST);
+            $redirectScheme = parse_url($url, PHP_URL_SCHEME);
             $redirectHost = parse_url($url, PHP_URL_HOST);
 
-            if ($appHost && $redirectHost && strtolower($appHost) === strtolower($redirectHost)) {
-                return true;
+            if ($appScheme && $appHost && $redirectScheme && $redirectHost) {
+                return strtolower($appScheme) === strtolower($redirectScheme)
+                    && strtolower($appHost) === strtolower($redirectHost);
             }
         }
 
