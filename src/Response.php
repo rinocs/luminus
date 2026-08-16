@@ -63,14 +63,24 @@ class Response
             return false;
         }
 
-        // Must start with '/' but not '//' or '/\' or '/ ' (which could indicate a protocol-relative URL)
-        if (str_starts_with($url, '/')) {
-            return !str_starts_with($url, '//') && !str_starts_with($url, '/\\') && !str_starts_with($url, '/ ');
+        // Reject URLs starting with backslashes
+        if (str_starts_with($url, '\\')) {
+            return false;
         }
 
-        // If it is an absolute URL, check if it matches the current application host
+        // Reject local paths starting with '/' followed by '/', '\', whitespace, or control characters
+        if (str_starts_with($url, '/')) {
+            return !preg_match('#^/[/\\\\\\s\\x00-\\x1f\\x7f]#', $url);
+        }
+
+        // If it is an absolute URL, check scheme and host matching APP_URL config
         $appUrl = $_ENV['APP_URL'] ?? getenv('APP_URL') ?: '';
         if ($appUrl !== '') {
+            $scheme = parse_url($url, PHP_URL_SCHEME);
+            if ($scheme !== null && !in_array(strtolower($scheme), ['http', 'https'], true)) {
+                return false;
+            }
+
             $appHost = parse_url($appUrl, PHP_URL_HOST);
             $redirectHost = parse_url($url, PHP_URL_HOST);
 
