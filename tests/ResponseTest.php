@@ -128,6 +128,10 @@ class ResponseTest extends TestCase
         $this->assertFalse($this->response->isSafeUrl('//evil.com'));
         $this->assertFalse($this->response->isSafeUrl('/\\evil.com'));
         $this->assertFalse($this->response->isSafeUrl('/ evil.com'));
+        $this->assertFalse($this->response->isSafeUrl("/\tevil.com"));
+        $this->assertFalse($this->response->isSafeUrl("/\nevil.com"));
+        $this->assertFalse($this->response->isSafeUrl('\\evil.com'));
+        $this->assertFalse($this->response->isSafeUrl('\\\\evil.com'));
 
         // 3. Absolute URLs matching APP_URL config
         $oldAppUrl = $_ENV['APP_URL'] ?? getenv('APP_URL') ?: '';
@@ -137,6 +141,8 @@ class ResponseTest extends TestCase
             $this->assertTrue($this->response->isSafeUrl('http://localhost:8080/dashboard'));
             $this->assertTrue($this->response->isSafeUrl('https://localhost:8080/home'));
             $this->assertFalse($this->response->isSafeUrl('http://evil.com/dashboard'));
+            $this->assertFalse($this->response->isSafeUrl('javascript://localhost:8080/%0Aalert(1)'));
+            $this->assertFalse($this->response->isSafeUrl('data://localhost:8080'));
         } finally {
             if ($oldAppUrl !== '') {
                 $_ENV['APP_URL'] = $oldAppUrl;
