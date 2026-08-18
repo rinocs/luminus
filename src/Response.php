@@ -59,18 +59,23 @@ class Response
      */
     public function isSafeUrl(string $url): bool
     {
-        if ($url === '') {
+        if ($url === '' || str_starts_with($url, '\\')) {
             return false;
         }
 
-        // Must start with '/' but not '//' or '/\' or '/ ' (which could indicate a protocol-relative URL)
+        // Must start with '/' but not '//', '/\', or followed by whitespace/control characters
         if (str_starts_with($url, '/')) {
-            return !str_starts_with($url, '//') && !str_starts_with($url, '/\\') && !str_starts_with($url, '/ ');
+            return !preg_match('#^/[\\\\/\\s\\x00-\\x1F\\x7F]#', $url);
         }
 
-        // If it is an absolute URL, check if it matches the current application host
+        // If it is an absolute URL, check if it uses HTTP/HTTPS and matches the current application host
         $appUrl = $_ENV['APP_URL'] ?? getenv('APP_URL') ?: '';
         if ($appUrl !== '') {
+            $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
+            if (!in_array($scheme, ['http', 'https'], true)) {
+                return false;
+            }
+
             $appHost = parse_url($appUrl, PHP_URL_HOST);
             $redirectHost = parse_url($url, PHP_URL_HOST);
 
