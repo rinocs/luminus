@@ -63,12 +63,21 @@ class Response
             return false;
         }
 
-        // Must start with '/' but not '//' or '/\' or '/ ' (which could indicate a protocol-relative URL)
-        if (str_starts_with($url, '/')) {
-            return !str_starts_with($url, '//') && !str_starts_with($url, '/\\') && !str_starts_with($url, '/ ');
+        if (str_starts_with($url, '\\')) {
+            return false;
         }
 
-        // If it is an absolute URL, check if it matches the current application host
+        // Must start with '/' but not followed by whitespace, backslash, slash, or control characters
+        if (str_starts_with($url, '/')) {
+            return !preg_match('#^/([\s\\\\/\x00-\x1F])#u', $url);
+        }
+
+        // Verify scheme is http or https before comparing hosts against APP_URL
+        $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
+        if (!in_array($scheme, ['http', 'https'], true)) {
+            return false;
+        }
+
         $appUrl = $_ENV['APP_URL'] ?? getenv('APP_URL') ?: '';
         if ($appUrl !== '') {
             $appHost = parse_url($appUrl, PHP_URL_HOST);
