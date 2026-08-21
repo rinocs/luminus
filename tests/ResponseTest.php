@@ -125,9 +125,14 @@ class ResponseTest extends TestCase
 
         // 2. Unsafe relative paths (potential protocol relative or obfuscated paths)
         $this->assertFalse($this->response->isSafeUrl(''));
+        $this->assertFalse($this->response->isSafeUrl('\\evil.com'));
         $this->assertFalse($this->response->isSafeUrl('//evil.com'));
         $this->assertFalse($this->response->isSafeUrl('/\\evil.com'));
         $this->assertFalse($this->response->isSafeUrl('/ evil.com'));
+        $this->assertFalse($this->response->isSafeUrl("/\tevil.com"));
+        $this->assertFalse($this->response->isSafeUrl("/\revil.com"));
+        $this->assertFalse($this->response->isSafeUrl("/\nevil.com"));
+        $this->assertFalse($this->response->isSafeUrl('/path\\with\\backslash'));
 
         // 3. Absolute URLs matching APP_URL config
         $oldAppUrl = $_ENV['APP_URL'] ?? getenv('APP_URL') ?: '';
