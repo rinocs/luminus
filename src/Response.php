@@ -59,13 +59,24 @@ class Response
      */
     public function isSafeUrl(string $url): bool
     {
-        if ($url === '') {
+        if ($url === '' || str_starts_with($url, '\\')) {
             return false;
         }
 
-        // Must start with '/' but not '//' or '/\' or '/ ' (which could indicate a protocol-relative URL)
+        // Reject control characters and whitespace (e.g., \r, \n, \t) to prevent HTTP response splitting/header injection
+        if (preg_match('/[\x00-\x1F\x7F]/', $url)) {
+            return false;
+        }
+
+        // Must start with '/' but not '//', '/\', or '/' followed by whitespace/control characters
         if (str_starts_with($url, '/')) {
-            return !str_starts_with($url, '//') && !str_starts_with($url, '/\\') && !str_starts_with($url, '/ ');
+            return !preg_match('#^/[\\\\/\\s]#', $url);
+        }
+
+        // Reject non-http/https schemes (e.g. javascript:, data:, file:)
+        $scheme = parse_url($url, PHP_URL_SCHEME);
+        if ($scheme !== null && !in_array(strtolower($scheme), ['http', 'https'], true)) {
+            return false;
         }
 
         // If it is an absolute URL, check if it matches the current application host
