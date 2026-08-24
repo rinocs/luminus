@@ -160,6 +160,9 @@ class Migrator
         $rolledBack = [];
         foreach ($migrations as $migration) {
             $name = $migration['migration'];
+            if (!preg_match('/^[a-zA-Z0-9_]+$/', $name) || basename($name) !== $name) {
+                throw new \InvalidArgumentException("Invalid migration name for rollback: {$name}");
+            }
             $downFile = $this->migrationsPath . '/' . $name . '.down.sql';
 
             if (!file_exists($downFile)) {
@@ -224,6 +227,10 @@ class Migrator
      */
     public function create(string $name): array
     {
+        if (str_contains($name, '/') || str_contains($name, '\\') || str_contains($name, '..') || basename($name) !== $name) {
+            throw new \InvalidArgumentException("Invalid migration name: {$name}");
+        }
+
         if (!is_dir($this->migrationsPath)) {
             mkdir($this->migrationsPath, 0775, true);
         }
