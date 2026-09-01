@@ -8,6 +8,7 @@ class View
     private ?string $layout = null;
     private array $sections = [];
     private string $currentSection = '';
+    private array $namespaces = [];
 
     public function __construct(string $viewsPath)
     {
@@ -45,6 +46,25 @@ class View
         }
     }
 
+    /**
+     * Render a template fragment without resolving/wrapping a layout.
+     * Useful for HTMX responses that swap only part of the page.
+     */
+    public function partial(string $template, array $data = []): string
+    {
+        $previousState = [$this->layout, $this->sections, $this->currentSection];
+        $this->layout = null;
+        $this->sections = [];
+        $this->currentSection = '';
+
+        try {
+            return $this->renderFile($template, $data);
+        } finally {
+            // Discard any layout/sections the template may have set.
+            [$this->layout, $this->sections, $this->currentSection] = $previousState;
+        }
+    }
+
     public function layout(string $layout): void
     {
         $this->layout = $layout;
@@ -72,9 +92,25 @@ class View
         echo $this->sections[$name] ?? '';
     }
 
+    public function addNamespace(string $namespace, string $path): void
+    {
+        $this->namespaces[$namespace] = rtrim($path, '/');
+    }
+
     private function renderFile(string $__template, array $__data): string
     {
-        $__file = $this->viewsPath . '/' . str_replace('.', '/', $__template) . '.php';
+        if (str_contains($__template, '::')) {
+            [$namespace, $templateName] = explode('::', $__template, 2);
+            if (!isset($this->namespaces[$namespace])) {
+                throw new \RuntimeException("View namespace [{$namespace}] not found.");
+            }
+            $basePath = $this->namespaces[$namespace];
+        } else {
+            $basePath = $this->viewsPath;
+            $templateName = $__template;
+        }
+
+        $__file = $basePath . '/' . str_replace('.', '/', $templateName) . '.php';
 
         if (!file_exists($__file)) {
             throw new \RuntimeException("View [{$__template}] not found: {$__file}");

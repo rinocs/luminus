@@ -30,6 +30,10 @@ class SecurityHeadersMiddleware implements Middleware
             $response->header($name, $value);
         }
 
+        if ($request->isSecure() && !isset($this->headers['Strict-Transport-Security'])) {
+            $response->header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+        }
+
         return $response;
     }
 }

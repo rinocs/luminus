@@ -13,6 +13,7 @@
     </style>
 </head>
 <body>
+    <div id="flash"></div>
     <?php $this->renderSection('content') ?>
 </body>
 </html>
