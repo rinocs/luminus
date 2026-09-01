@@ -21,14 +21,23 @@ class CsrfMiddleware implements Middleware
             $token = $this->getTokenFromRequest($request);
 
             if (!$token || !hash_equals(Session::token(), $token)) {
-                return (new Response())
+                $response = (new Response())
                     ->status(403)
                     ->body('403 Forbidden: CSRF token mismatch');
+                return $this->attachCsrfCookie($request, $response);
             }
         }
 
         $response = $next($request);
 
+        return $this->attachCsrfCookie($request, $response);
+    }
+
+    /**
+     * Attach the XSRF-TOKEN cookie to the response.
+     */
+    protected function attachCsrfCookie(Request $request, Response $response): Response
+    {
         // Set the XSRF-TOKEN cookie. It must not be HttpOnly so JavaScript libraries (like Axios) can read it.
         $secure = $request->isSecure();
         if (method_exists($response, 'cookie')) {
