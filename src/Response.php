@@ -18,7 +18,12 @@ class Response
 
     public function header(string $name, string $value): static
     {
-        $this->headers[$name] = $value;
+        // Strip CR and LF characters from header name and value to prevent HTTP response splitting (CRLF injection)
+        $name = str_replace(["\r", "\n"], '', $name);
+        $value = str_replace(["\r", "\n"], '', $value);
+        if ($name !== '') {
+            $this->headers[$name] = $value;
+        }
         return $this;
     }
 
