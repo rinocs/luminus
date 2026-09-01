@@ -19,15 +19,47 @@ class Worker
 
         echo "Listening for jobs on queue [{$queue}] via connection [" . ($connection ?? 'default') . "]...\n";
 
-        while (true) {
-            $jobData = $driver->pop($queue);
+        // Keep track of active fibers processing jobs
+        $fibers = [];
 
-            if ($jobData === null) {
+        while (true) {
+            // First, filter out completed / terminated fibers
+            $fibers = array_filter($fibers, fn(\Fiber $f) => !$f->isTerminated());
+
+            // If we have capacity and there are jobs, try to pop a job to process concurrently
+            // For safety and simplicity, let's process up to 20 concurrent jobs
+            if (count($fibers) < 20) {
+                $jobData = $driver->pop($queue);
+
+                if ($jobData !== null) {
+                    // Start processing the job inside a new Fiber
+                    $fiber = \Luminus\Async::run(function () use ($driver, $queue, $jobData) {
+                        $this->process($driver, $queue, $jobData);
+                    });
+                    $fibers[] = $fiber;
+                    continue;
+                }
+            }
+
+            // If we didn't pop a new job and no fibers are running, sleep
+            if (empty($fibers)) {
                 sleep($sleep);
                 continue;
             }
 
-            $this->process($driver, $queue, $jobData);
+            // Tick through active fibers, resuming them if needed
+            foreach ($fibers as $fiber) {
+                if ($fiber->isStarted() && !$fiber->isTerminated()) {
+                    try {
+                        $fiber->resume();
+                    } catch (\Throwable $e) {
+                        // Let exceptions inside the process finish safely
+                    }
+                }
+            }
+
+            // Small sleep/pause to avoid pegged CPU in high-frequency empty loops
+            usleep(10000); // 10ms
         }
     }
 

@@ -12,6 +12,7 @@ class QueryBuilder
     private ?int $limit = null;
     private ?int $offset = null;
     private array $columns = ['*'];
+    private array $eagerLoads = [];
 
     public function __construct(Database $db, string $table)
     {
@@ -22,6 +23,20 @@ class QueryBuilder
     public function select(array $columns = ['*']): static
     {
         $this->columns = $columns;
+        return $this;
+    }
+
+    /**
+     * Eager load a relation.
+     * E.g. $query->with('author', 'author_id', 'users', 'id')
+     */
+    public function with(string $relation, string $foreignKey, string $relatedTable, string $relatedKey): static
+    {
+        $this->eagerLoads[$relation] = [
+            'foreign_key' => $foreignKey,
+            'related_table' => $relatedTable,
+            'related_key' => $relatedKey,
+        ];
         return $this;
     }
 
@@ -84,8 +99,51 @@ class QueryBuilder
     public function get(): array
     {
         $sql = $this->buildSelect();
+        $results = $this->db->query($sql, $this->params);
 
-        return $this->db->query($sql, $this->params);
+        if (empty($results) || empty($this->eagerLoads)) {
+            return $results;
+        }
+
+        foreach ($this->eagerLoads as $relation => $load) {
+            $foreignKey = $load['foreign_key'];
+            $relatedTable = $load['related_table'];
+            $relatedKey = $load['related_key'];
+
+            // Pluck foreign keys
+            $ids = array_filter(array_unique(array_column($results, $foreignKey)), fn($val) => $val !== null);
+
+            if (empty($ids)) {
+                foreach ($results as &$row) {
+                    $row[$relation] = null;
+                }
+                unset($row);
+                continue;
+            }
+
+            // Fetch related items
+            $placeholders = implode(', ', array_fill(0, count($ids), '?'));
+            $quotedRelatedTable = $this->db->quoteIdentifier($relatedTable);
+            $quotedRelatedKey = $this->db->quoteIdentifier($relatedKey);
+
+            $relatedSql = "SELECT * FROM {$quotedRelatedTable} WHERE {$quotedRelatedKey} IN ({$placeholders})";
+            $relatedRows = $this->db->query($relatedSql, array_values($ids));
+
+            // Map related items by related_key
+            $mapped = [];
+            foreach ($relatedRows as $rRow) {
+                $mapped[$rRow[$relatedKey]] = $rRow;
+            }
+
+            // Attach to parents
+            foreach ($results as &$row) {
+                $fKeyValue = $row[$foreignKey];
+                $row[$relation] = $mapped[$fKeyValue] ?? null;
+            }
+            unset($row);
+        }
+
+        return $results;
     }
 
     public function first(): ?array
