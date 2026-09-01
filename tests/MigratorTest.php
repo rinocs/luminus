@@ -120,4 +120,28 @@ class MigratorTest extends TestCase
         $statusAfter = $migrator->status();
         $this->assertSame('pending', $statusAfter[0]['status']);
     }
+
+    public function test_rollback_and_create_prevent_path_traversal(): void
+    {
+        $migrator = new Migrator($this->db, $this->tempMigrationsPath);
+
+        // Test create with invalid path traversal name
+        $this->expectException(\InvalidArgumentException::class);
+        $migrator->create('../malicious_migration');
+    }
+
+    public function test_rollback_prevents_path_traversal_in_db_records(): void
+    {
+        $migrator = new Migrator($this->db, $this->tempMigrationsPath);
+        $migrator->ensureMigrationTableExists();
+
+        // Insert a malicious migration record into database table directly
+        $this->db->insert('migrations', [
+            'migration' => '../../etc/passwd',
+            'batch' => 1,
+        ]);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $migrator->rollback();
+    }
 }

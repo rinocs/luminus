@@ -35,6 +35,20 @@ class ResponseTest extends TestCase
         $this->assertSame($this->response, $ret);
     }
 
+    public function test_header_sanitizes_crlf_injection(): void
+    {
+        $this->response->header("X-Foo\r\nInjected-Header: evil", "bar\r\nSet-Cookie: session=stolen");
+
+        $ref = new ReflectionClass($this->response);
+        $prop = $ref->getProperty('headers');
+        $prop->setAccessible(true);
+        $headers = $prop->getValue($this->response);
+
+        $this->assertArrayHasKey('X-FooInjected-Header: evil', $headers);
+        $this->assertSame('barSet-Cookie: session=stolen', $headers['X-FooInjected-Header: evil']);
+        $this->assertArrayNotHasKey("X-Foo\r\nInjected-Header: evil", $headers);
+    }
+
     public function test_body_content(): void
     {
         $this->response->body('Hello');

@@ -18,7 +18,12 @@ class Response
 
     public function header(string $name, string $value): static
     {
-        $this->headers[$name] = $value;
+        // Strip CR and LF characters from header name and value to prevent HTTP response splitting (CRLF injection)
+        $name = str_replace(["\r", "\n"], '', $name);
+        $value = str_replace(["\r", "\n"], '', $value);
+        if ($name !== '') {
+            $this->headers[$name] = $value;
+        }
         return $this;
     }
 
@@ -59,22 +64,38 @@ class Response
      */
     public function isSafeUrl(string $url): bool
     {
-        if ($url === '') {
+        if ($url === '' || str_starts_with($url, '\\')) {
             return false;
         }
 
-        // Must start with '/' but not '//' or '/\' or '/ ' (which could indicate a protocol-relative URL)
+        // Must start with '/' but not '//' or '/\' or leading whitespace/control character after '/'
         if (str_starts_with($url, '/')) {
-            return !str_starts_with($url, '//') && !str_starts_with($url, '/\\') && !str_starts_with($url, '/ ');
+            if (str_starts_with($url, '//') || str_starts_with($url, '/\\')) {
+                return false;
+            }
+            $secondChar = $url[1] ?? '';
+            if ($secondChar !== '' && (ctype_space($secondChar) || ctype_cntrl($secondChar))) {
+                return false;
+            }
+            return true;
         }
 
-        // If it is an absolute URL, check if it matches the current application host
+        // If it is an absolute URL, check if it matches the current application host and uses valid http/https scheme
         $appUrl = $_ENV['APP_URL'] ?? getenv('APP_URL') ?: '';
         if ($appUrl !== '') {
             $appHost = parse_url($appUrl, PHP_URL_HOST);
+            $appScheme = parse_url($appUrl, PHP_URL_SCHEME);
             $redirectHost = parse_url($url, PHP_URL_HOST);
+            $redirectScheme = parse_url($url, PHP_URL_SCHEME);
 
-            if ($appHost && $redirectHost && strtolower($appHost) === strtolower($redirectHost)) {
+            if (
+                $appHost && $redirectHost && strtolower($appHost) === strtolower($redirectHost)
+                && is_string($redirectScheme) && in_array(strtolower($redirectScheme), ['http', 'https'], true)
+            ) {
+                // If APP_URL specifies a scheme, enforce matching or valid HTTP/HTTPS equivalence
+                if ($appScheme && strtolower($appScheme) === 'https' && strtolower($redirectScheme) !== 'https') {
+                    return false;
+                }
                 return true;
             }
         }
