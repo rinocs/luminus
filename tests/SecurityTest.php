@@ -641,6 +641,45 @@ class SecurityTest extends TestCase
         $this->assertArrayNotHasKey('Strict-Transport-Security', $headersInsecure);
     }
 
+    public function test_response_is_safe_url_prevents_open_redirect_bypasses(): void
+    {
+        $response = new Response();
+
+        // Valid local paths
+        $this->assertTrue($response->isSafeUrl('/dashboard'));
+        $this->assertTrue($response->isSafeUrl('/user/profile'));
+
+        // Invalid: Protocol-relative URLs or backslash URLs
+        $this->assertFalse($response->isSafeUrl('//evil.com'));
+        $this->assertFalse($response->isSafeUrl('/\\evil.com'));
+        $this->assertFalse($response->isSafeUrl('\\\\evil.com'));
+        $this->assertFalse($response->isSafeUrl('\\evil.com'));
+
+        // Invalid: Whitespace or control character obfuscated URLs
+        $this->assertFalse($response->isSafeUrl('/ evil.com'));
+        $this->assertFalse($response->isSafeUrl("/\tevil.com"));
+        $this->assertFalse($response->isSafeUrl("/\nevil.com"));
+        $this->assertFalse($response->isSafeUrl("/\revil.com"));
+
+        // Absolute URL checks with APP_URL
+        $_ENV['APP_URL'] = 'https://example.com';
+        putenv('APP_URL=https://example.com');
+
+        try {
+            // Same host and scheme
+            $this->assertTrue($response->isSafeUrl('https://example.com/login'));
+
+            // Scheme mismatch (http vs https)
+            $this->assertFalse($response->isSafeUrl('http://example.com/login'));
+
+            // Host mismatch
+            $this->assertFalse($response->isSafeUrl('https://evil.com/login'));
+        } finally {
+            unset($_ENV['APP_URL']);
+            putenv('APP_URL');
+        }
+    }
+
     public function test_auth_controller_prevents_open_redirect(): void
     {
         // Place malicious URL in 'intended' flash session
