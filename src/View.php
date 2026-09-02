@@ -110,6 +110,11 @@ class View
             $templateName = $__template;
         }
 
+        // Prevent Path Traversal (LFI) by rejecting directory traversal sequences, backslashes, or absolute paths
+        if (str_contains($templateName, '..') || str_contains($templateName, '\\') || str_starts_with($templateName, '/')) {
+            throw new \InvalidArgumentException("Invalid view template name: {$__template}");
+        }
+
         $__file = $basePath . '/' . str_replace('.', '/', $templateName) . '.php';
 
         if (!file_exists($__file)) {
