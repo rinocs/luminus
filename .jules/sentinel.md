@@ -31,3 +31,8 @@
 **Vulnerability:** The password confirmation endpoint (`/confirm-password`) did not limit authentication attempts. A malicious actor could brute force passwords on logged-in sessions or perform a CPU-exhaustion DoS attack by repeatedly sending expensive BCrypt verification requests.
 **Learning:** Sensitive endpoints validating credentials or passwords must be protected by robust rate-limiting controls, even if they require a logged-in session. When the framework does not use database-backed throttle tracking, utilizing the lightweight session-based throttling mechanism is extremely effective.
 **Prevention:** Track failed confirmation attempts within MD5-hashed, user-specific session keys. Cap attempts to 5 within a 60-second window, and bypass the database and password hashing logic entirely during the lockout period.
+
+## 2026-08-09 - Mitigate Path Traversal and Arbitrary File Inclusion in View Engine
+**Vulnerability:** The View engine's `renderFile` method did not validate view template names against directory traversal sequences (`..`), backslashes (`\`), or leading slashes (`/`). If user-controlled input was passed to view rendering methods, an attacker could traverse out of the configured views directory and include arbitrary PHP files on the filesystem.
+**Learning:** Template rendering engines that resolve dot-notation paths (`str_replace('.', '/', $template)`) must sanitize template names against path traversal primitives before building file paths, preventing local file inclusion (LFI) vulnerabilities.
+**Prevention:** Reject template names containing `..`, `\`, or starting with `/` by throwing an `InvalidArgumentException` in `View::renderFile()`.
