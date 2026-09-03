@@ -41,3 +41,8 @@
 **Vulnerability:** The View engine's `renderFile` method did not validate view template names against directory traversal sequences (`..`), backslashes (`\`), or leading slashes (`/`). If user-controlled input was passed to view rendering methods, an attacker could traverse out of the configured views directory and include arbitrary PHP files on the filesystem.
 **Learning:** Template rendering engines that resolve dot-notation paths (`str_replace('.', '/', $template)`) must sanitize template names against path traversal primitives before building file paths, preventing local file inclusion (LFI) vulnerabilities.
 **Prevention:** Reject template names containing `..`, `\`, or starting with `/` by throwing an `InvalidArgumentException` in `View::renderFile()`.
+
+## 2026-08-10 - Sanitize Cookie Parameters in Response Engine against CRLF Injection
+**Vulnerability:** While `Response::header()` stripped carriage return (`\r`) and linefeed (`\n`) characters from header names and values, `Response::cookie()` stored cookie name, value, path, and domain parameters without stripping CRLF characters. User-controlled data passed into cookie attributes could potentially be exploited for HTTP response splitting or cookie header injection.
+**Learning:** Any method on a response builder that constructs or emits HTTP headers (including cookie headers) must enforce strict CRLF sanitization on all string inputs before setting or outputting headers.
+**Prevention:** Strip `\r` and `\n` characters from cookie `$name`, `$value`, `$path`, and `$domain` parameters in `Response::cookie()`.

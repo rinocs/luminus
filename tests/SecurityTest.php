@@ -311,6 +311,23 @@ class SecurityTest extends TestCase
         $this->assertSame('Strict', $cookies['theme']['sameSite']);
     }
 
+    public function test_response_cookie_crlf_sanitization(): void
+    {
+        $response = new Response();
+        $response->cookie("user\r\n_pref", "dark\r\nmode", 3600, "/path\r\n", "example\r\n.com");
+
+        $ref = new ReflectionClass($response);
+        $prop = $ref->getProperty('cookies');
+        $prop->setAccessible(true);
+        $cookies = $prop->getValue($response);
+
+        $this->assertArrayHasKey('user_pref', $cookies);
+        $this->assertSame('user_pref', $cookies['user_pref']['name']);
+        $this->assertSame('darkmode', $cookies['user_pref']['value']);
+        $this->assertSame('/path', $cookies['user_pref']['path']);
+        $this->assertSame('example.com', $cookies['user_pref']['domain']);
+    }
+
     public function test_unserialize_safe_deserialization_of_valid_job(): void
     {
         $job = new SecureDummyJob();
