@@ -113,16 +113,24 @@ class Response
         bool $httpOnly = true,
         string $sameSite = 'Lax'
     ): static {
-        $this->cookies[$name] = [
-            'name' => $name,
-            'value' => $value,
-            'expires' => $expires,
-            'path' => $path,
-            'domain' => $domain,
-            'secure' => $secure,
-            'httpOnly' => $httpOnly,
-            'sameSite' => $sameSite,
-        ];
+        // Strip CR and LF characters from cookie name, value, path, and domain to prevent CRLF injection / HTTP response splitting
+        $name = str_replace(["\r", "\n"], '', $name);
+        $value = str_replace(["\r", "\n"], '', $value);
+        $path = str_replace(["\r", "\n"], '', $path);
+        $domain = str_replace(["\r", "\n"], '', $domain);
+
+        if ($name !== '') {
+            $this->cookies[$name] = [
+                'name' => $name,
+                'value' => $value,
+                'expires' => $expires,
+                'path' => $path,
+                'domain' => $domain,
+                'secure' => $secure,
+                'httpOnly' => $httpOnly,
+                'sameSite' => $sameSite,
+            ];
+        }
         return $this;
     }
 
