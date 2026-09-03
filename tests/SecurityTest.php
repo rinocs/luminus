@@ -791,4 +791,41 @@ class SecurityTest extends TestCase
         // The attempts counter should be reset back to 1
         $this->assertSame(1, Session::get($throttleKey . '_attempts'));
     }
+
+    public function test_view_path_traversal_prevention(): void
+    {
+        $view = new \Luminus\View(__DIR__ . '/fixtures/views');
+
+        // Path traversal using relative directory sequences
+        try {
+            $view->render('../../etc/passwd');
+            $this->fail('Expected InvalidArgumentException for path traversal');
+        } catch (\InvalidArgumentException $e) {
+            $this->assertStringContainsString('Invalid view template name', $e->getMessage());
+        }
+
+        // Path traversal using backslashes
+        try {
+            $view->render('..\\..\\etc\\passwd');
+            $this->fail('Expected InvalidArgumentException for path traversal with backslashes');
+        } catch (\InvalidArgumentException $e) {
+            $this->assertStringContainsString('Invalid view template name', $e->getMessage());
+        }
+
+        // Absolute path
+        try {
+            $view->render('/etc/passwd');
+            $this->fail('Expected InvalidArgumentException for absolute path');
+        } catch (\InvalidArgumentException $e) {
+            $this->assertStringContainsString('Invalid view template name', $e->getMessage());
+        }
+
+        // Check partial method as well
+        try {
+            $view->partial('../../etc/passwd');
+            $this->fail('Expected InvalidArgumentException for partial path traversal');
+        } catch (\InvalidArgumentException $e) {
+            $this->assertStringContainsString('Invalid view template name', $e->getMessage());
+        }
+    }
 }
