@@ -32,6 +32,11 @@
 **Learning:** Sensitive endpoints validating credentials or passwords must be protected by robust rate-limiting controls, even if they require a logged-in session. When the framework does not use database-backed throttle tracking, utilizing the lightweight session-based throttling mechanism is extremely effective.
 **Prevention:** Track failed confirmation attempts within MD5-hashed, user-specific session keys. Cap attempts to 5 within a 60-second window, and bypass the database and password hashing logic entirely during the lockout period.
 
+## 2026-08-09 - Attach CSRF Cookies on 403 Error Responses for Frontend Token Synchronization
+**Vulnerability:** `CsrfMiddleware` returned a 403 Forbidden response on CSRF mismatch without attaching the current session `XSRF-TOKEN` cookie. Frontend JavaScript clients (such as Single-Page Applications using Axios or Fetch) were unable to read an updated CSRF token cookie from 403 responses to resynchronize for subsequent requests.
+**Learning:** Returning early from middleware when validation fails bypasses subsequent response post-processing logic (such as cookie attachment). Security middleware should ensure session/CSRF cookies are attached consistently across all response paths.
+**Prevention:** Extract cookie attachment into dedicated helper functions and invoke them on both early error responses (403 Forbidden) and downstream responses.
+
 ## 2026-08-09 - Mitigate Path Traversal and Arbitrary File Inclusion in View Engine
 **Vulnerability:** The View engine's `renderFile` method did not validate view template names against directory traversal sequences (`..`), backslashes (`\`), or leading slashes (`/`). If user-controlled input was passed to view rendering methods, an attacker could traverse out of the configured views directory and include arbitrary PHP files on the filesystem.
 **Learning:** Template rendering engines that resolve dot-notation paths (`str_replace('.', '/', $template)`) must sanitize template names against path traversal primitives before building file paths, preventing local file inclusion (LFI) vulnerabilities.

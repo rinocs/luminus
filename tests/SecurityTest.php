@@ -112,6 +112,15 @@ class SecurityTest extends TestCase
         $this->assertFalse($called);
         $this->assertSame(403, $response->getStatusCode());
         $this->assertStringContainsString('CSRF token mismatch', (string)$response);
+
+        // Verify that XSRF-TOKEN cookie is attached even on 403 Forbidden responses
+        $ref = new ReflectionClass($response);
+        $prop = $ref->getProperty('cookies');
+        $prop->setAccessible(true);
+        $cookies = $prop->getValue($response);
+
+        $this->assertArrayHasKey('XSRF-TOKEN', $cookies);
+        $this->assertSame(Session::token(), $cookies['XSRF-TOKEN']['value']);
     }
 
     public function test_csrf_middleware_allows_post_with_valid_token(): void
