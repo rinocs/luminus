@@ -49,6 +49,28 @@ class ResponseTest extends TestCase
         $this->assertArrayNotHasKey("X-Foo\r\nInjected-Header: evil", $headers);
     }
 
+    public function test_cookie_sanitizes_crlf_injection(): void
+    {
+        $this->response->cookie(
+            "session\r\nInjected: header",
+            "val\r\nSet-Cookie: stolen=1",
+            3600,
+            "/\r\npath",
+            "example.com\r\n"
+        );
+
+        $ref = new ReflectionClass($this->response);
+        $prop = $ref->getProperty('cookies');
+        $prop->setAccessible(true);
+        $cookies = $prop->getValue($this->response);
+
+        $this->assertArrayHasKey('sessionInjected: header', $cookies);
+        $this->assertSame('valSet-Cookie: stolen=1', $cookies['sessionInjected: header']['value']);
+        $this->assertSame('/path', $cookies['sessionInjected: header']['path']);
+        $this->assertSame('example.com', $cookies['sessionInjected: header']['domain']);
+        $this->assertArrayNotHasKey("session\r\nInjected: header", $cookies);
+    }
+
     public function test_body_content(): void
     {
         $this->response->body('Hello');
