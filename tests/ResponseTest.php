@@ -192,4 +192,30 @@ class ResponseTest extends TestCase
             }
         }
     }
+
+    public function test_cookie_sanitizes_crlf_injection(): void
+    {
+        $this->response->cookie(
+            "session\r\ninjected: true",
+            "val\r\nSet-Cookie: stolen=1",
+            3600,
+            "/\r\nHeader: evil",
+            "example.com\r\n",
+            false,
+            true,
+            "Lax\r\n"
+        );
+
+        $ref = new ReflectionClass($this->response);
+        $prop = $ref->getProperty('cookies');
+        $prop->setAccessible(true);
+        $cookies = $prop->getValue($this->response);
+
+        $this->assertArrayHasKey('sessioninjected: true', $cookies);
+        $this->assertSame('sessioninjected: true', $cookies['sessioninjected: true']['name']);
+        $this->assertSame('valSet-Cookie: stolen=1', $cookies['sessioninjected: true']['value']);
+        $this->assertSame('/Header: evil', $cookies['sessioninjected: true']['path']);
+        $this->assertSame('example.com', $cookies['sessioninjected: true']['domain']);
+        $this->assertSame('Lax', $cookies['sessioninjected: true']['sameSite']);
+    }
 }
