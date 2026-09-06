@@ -192,4 +192,28 @@ class ResponseTest extends TestCase
             }
         }
     }
+
+    public function test_cookie_sanitizes_crlf_injection(): void
+    {
+        $response = new Response();
+        $response->cookie("session\r\nid", "abc\r\nSet-Cookie: evil=1", 0, "/\r\npath", "example.com\r\n", false, true, "Lax\r\n");
+
+        $ref = new ReflectionClass($response);
+        $prop = $ref->getProperty('cookies');
+        $prop->setAccessible(true);
+        $cookies = $prop->getValue($response);
+
+        $this->assertArrayHasKey('sessionid', $cookies);
+        $this->assertSame('sessionid', $cookies['sessionid']['name']);
+        $this->assertSame('abcSet-Cookie: evil=1', $cookies['sessionid']['value']);
+        $this->assertSame('/path', $cookies['sessionid']['path']);
+        $this->assertSame('example.com', $cookies['sessionid']['domain']);
+        $this->assertSame('Lax', $cookies['sessionid']['sameSite']);
+
+        // Empty name after sanitization should be ignored
+        $response2 = new Response();
+        $response2->cookie("\r\n", "value");
+        $cookies2 = $prop->getValue($response2);
+        $this->assertEmpty($cookies2);
+    }
 }
