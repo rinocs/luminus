@@ -8,6 +8,7 @@ class View
     private ?string $layout = null;
     private array $sections = [];
     private string $currentSection = '';
+    private array $namespaces = [];
 
     public function __construct(string $viewsPath)
     {
@@ -45,6 +46,25 @@ class View
         }
     }
 
+    /**
+     * Render a template fragment without resolving/wrapping a layout.
+     * Useful for HTMX responses that swap only part of the page.
+     */
+    public function partial(string $template, array $data = []): string
+    {
+        $previousState = [$this->layout, $this->sections, $this->currentSection];
+        $this->layout = null;
+        $this->sections = [];
+        $this->currentSection = '';
+
+        try {
+            return $this->renderFile($template, $data);
+        } finally {
+            // Discard any layout/sections the template may have set.
+            [$this->layout, $this->sections, $this->currentSection] = $previousState;
+        }
+    }
+
     public function layout(string $layout): void
     {
         $this->layout = $layout;
@@ -72,26 +92,47 @@ class View
         echo $this->sections[$name] ?? '';
     }
 
-    private function renderFile(string $template, array $data): string
+    public function addNamespace(string $namespace, string $path): void
     {
-        $file = $this->viewsPath . '/' . str_replace('.', '/', $template) . '.php';
+        $this->namespaces[$namespace] = rtrim($path, '/');
+    }
 
-        if (!file_exists($file)) {
-            throw new \RuntimeException("View [{$template}] not found: {$file}");
+    private function renderFile(string $__template, array $__data): string
+    {
+        if (str_contains($__template, '::')) {
+            [$namespace, $templateName] = explode('::', $__template, 2);
+            if (!isset($this->namespaces[$namespace])) {
+                throw new \RuntimeException("View namespace [{$namespace}] not found.");
+            }
+            $basePath = $this->namespaces[$namespace];
+        } else {
+            $basePath = $this->viewsPath;
+            $templateName = $__template;
         }
 
-        $bufferLevel = ob_get_level();
-        extract($data, EXTR_SKIP);
+        // Prevent Path Traversal (LFI) by rejecting directory traversal sequences, backslashes, or absolute paths
+        if (str_contains($templateName, '..') || str_contains($templateName, '\\') || str_starts_with($templateName, '/')) {
+            throw new \InvalidArgumentException("Invalid view template name: {$__template}");
+        }
+
+        $__file = $basePath . '/' . str_replace('.', '/', $templateName) . '.php';
+
+        if (!file_exists($__file)) {
+            throw new \RuntimeException("View [{$__template}] not found: {$__file}");
+        }
+
+        $__bufferLevel = ob_get_level();
+        extract($__data, EXTR_SKIP);
         ob_start();
 
         try {
-            require $file;
+            require $__file;
             return ob_get_clean();
-        } catch (\Throwable $e) {
-            while (ob_get_level() > $bufferLevel) {
+        } catch (\Throwable $__e) {
+            while (ob_get_level() > $__bufferLevel) {
                 ob_end_clean();
             }
-            throw $e;
+            throw $__e;
         }
     }
 }

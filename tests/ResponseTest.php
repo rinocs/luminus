@@ -35,6 +35,46 @@ class ResponseTest extends TestCase
         $this->assertSame($this->response, $ret);
     }
 
+    public function test_header_sanitizes_crlf_injection(): void
+    {
+        $this->response->header("X-Foo\r\nInjected-Header: evil", "bar\r\nSet-Cookie: session=stolen");
+
+        $ref = new ReflectionClass($this->response);
+        $prop = $ref->getProperty('headers');
+        $prop->setAccessible(true);
+        $headers = $prop->getValue($this->response);
+
+        $this->assertArrayHasKey('X-FooInjected-Header: evil', $headers);
+        $this->assertSame('barSet-Cookie: session=stolen', $headers['X-FooInjected-Header: evil']);
+        $this->assertArrayNotHasKey("X-Foo\r\nInjected-Header: evil", $headers);
+    }
+
+    public function test_cookie_sanitizes_crlf_injection(): void
+    {
+        $this->response->cookie(
+            "session\r\nid",
+            "val\r\nue",
+            0,
+            "/\r\npath",
+            "exam\r\nple.com",
+            false,
+            true,
+            "Lax\r\n"
+        );
+
+        $ref = new ReflectionClass($this->response);
+        $prop = $ref->getProperty('cookies');
+        $prop->setAccessible(true);
+        $cookies = $prop->getValue($this->response);
+
+        $this->assertArrayHasKey('sessionid', $cookies);
+        $this->assertSame('sessionid', $cookies['sessionid']['name']);
+        $this->assertSame('value', $cookies['sessionid']['value']);
+        $this->assertSame('/path', $cookies['sessionid']['path']);
+        $this->assertSame('example.com', $cookies['sessionid']['domain']);
+        $this->assertSame('Lax', $cookies['sessionid']['sameSite']);
+    }
+
     public function test_body_content(): void
     {
         $this->response->body('Hello');
@@ -114,5 +154,68 @@ class ResponseTest extends TestCase
     {
         $ret = $this->response->body('test');
         $this->assertSame($this->response, $ret);
+    }
+
+    public function test_is_safe_url(): void
+    {
+        // 1. Safe relative paths
+        $this->assertTrue($this->response->isSafeUrl('/dashboard'));
+        $this->assertTrue($this->response->isSafeUrl('/'));
+        $this->assertTrue($this->response->isSafeUrl('/home?user=1'));
+
+        // 2. Unsafe relative paths (potential protocol relative or obfuscated paths)
+        $this->assertFalse($this->response->isSafeUrl(''));
+        $this->assertFalse($this->response->isSafeUrl('//evil.com'));
+        $this->assertFalse($this->response->isSafeUrl('/\\evil.com'));
+        $this->assertFalse($this->response->isSafeUrl('/ evil.com'));
+
+        // 3. Absolute URLs matching APP_URL config
+        $oldAppUrl = $_ENV['APP_URL'] ?? getenv('APP_URL') ?: '';
+        $_ENV['APP_URL'] = 'http://localhost:8080';
+
+        try {
+            $this->assertTrue($this->response->isSafeUrl('http://localhost:8080/dashboard'));
+            $this->assertTrue($this->response->isSafeUrl('https://localhost:8080/home'));
+            $this->assertFalse($this->response->isSafeUrl('http://evil.com/dashboard'));
+        } finally {
+            if ($oldAppUrl !== '') {
+                $_ENV['APP_URL'] = $oldAppUrl;
+            } else {
+                unset($_ENV['APP_URL']);
+            }
+        }
+    }
+
+    public function test_safe_redirect(): void
+    {
+        $oldAppUrl = $_ENV['APP_URL'] ?? getenv('APP_URL') ?: '';
+        $_ENV['APP_URL'] = 'http://localhost:8080';
+
+        try {
+            // Safe relative URL redirect
+            $res = $this->response->safeRedirect('/dashboard');
+            $ref = new ReflectionClass($res);
+            $prop = $ref->getProperty('redirectUrl');
+            $prop->setAccessible(true);
+            $this->assertSame('/dashboard', $prop->getValue($res));
+
+            // Safe absolute URL redirect
+            $res2 = (new Response())->safeRedirect('http://localhost:8080/home');
+            $this->assertSame('http://localhost:8080/home', $prop->getValue($res2));
+
+            // Unsafe URL redirect should fall back to default '/'
+            $res3 = (new Response())->safeRedirect('http://evil.com/dashboard');
+            $this->assertSame('/', $prop->getValue($res3));
+
+            // Unsafe URL redirect should fall back to specified default '/fallback'
+            $res4 = (new Response())->safeRedirect('//evil.com/dashboard', '/fallback');
+            $this->assertSame('/fallback', $prop->getValue($res4));
+        } finally {
+            if ($oldAppUrl !== '') {
+                $_ENV['APP_URL'] = $oldAppUrl;
+            } else {
+                unset($_ENV['APP_URL']);
+            }
+        }
     }
 }

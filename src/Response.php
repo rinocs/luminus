@@ -18,7 +18,12 @@ class Response
 
     public function header(string $name, string $value): static
     {
-        $this->headers[$name] = $value;
+        // Strip CR and LF characters from header name and value to prevent HTTP response splitting (CRLF injection)
+        $name = str_replace(["\r", "\n"], '', $name);
+        $value = str_replace(["\r", "\n"], '', $value);
+        if ($name !== '') {
+            $this->headers[$name] = $value;
+        }
         return $this;
     }
 
@@ -43,6 +48,61 @@ class Response
         return $this;
     }
 
+    /**
+     * Set a redirect response, ensuring the URL is safe (local/same-origin) to prevent Open Redirect vulnerabilities.
+     */
+    public function safeRedirect(string $url, string $default = '/', int $status = 302): static
+    {
+        if ($this->isSafeUrl($url)) {
+            return $this->redirect($url, $status);
+        }
+        return $this->redirect($default, $status);
+    }
+
+    /**
+     * Determine if a redirect URL is local and safe (prevents Open Redirect).
+     */
+    public function isSafeUrl(string $url): bool
+    {
+        if ($url === '' || str_starts_with($url, '\\')) {
+            return false;
+        }
+
+        // Must start with '/' but not '//' or '/\' or leading whitespace/control character after '/'
+        if (str_starts_with($url, '/')) {
+            if (str_starts_with($url, '//') || str_starts_with($url, '/\\')) {
+                return false;
+            }
+            $secondChar = $url[1] ?? '';
+            if ($secondChar !== '' && (ctype_space($secondChar) || ctype_cntrl($secondChar))) {
+                return false;
+            }
+            return true;
+        }
+
+        // If it is an absolute URL, check if it matches the current application host and uses valid http/https scheme
+        $appUrl = $_ENV['APP_URL'] ?? getenv('APP_URL') ?: '';
+        if ($appUrl !== '') {
+            $appHost = parse_url($appUrl, PHP_URL_HOST);
+            $appScheme = parse_url($appUrl, PHP_URL_SCHEME);
+            $redirectHost = parse_url($url, PHP_URL_HOST);
+            $redirectScheme = parse_url($url, PHP_URL_SCHEME);
+
+            if (
+                $appHost && $redirectHost && strtolower($appHost) === strtolower($redirectHost)
+                && is_string($redirectScheme) && in_array(strtolower($redirectScheme), ['http', 'https'], true)
+            ) {
+                // If APP_URL specifies a scheme, enforce matching or valid HTTP/HTTPS equivalence
+                if ($appScheme && strtolower($appScheme) === 'https' && strtolower($redirectScheme) !== 'https') {
+                    return false;
+                }
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public function cookie(
         string $name,
         string $value = '',
@@ -53,6 +113,17 @@ class Response
         bool $httpOnly = true,
         string $sameSite = 'Lax'
     ): static {
+        // Strip CR and LF characters from cookie string parameters to prevent HTTP response splitting (CRLF injection)
+        $name = str_replace(["\r", "\n"], '', $name);
+        $value = str_replace(["\r", "\n"], '', $value);
+        $path = str_replace(["\r", "\n"], '', $path);
+        $domain = str_replace(["\r", "\n"], '', $domain);
+        $sameSite = str_replace(["\r", "\n"], '', $sameSite);
+
+        if ($name === '') {
+            return $this;
+        }
+
         $this->cookies[$name] = [
             'name' => $name,
             'value' => $value,

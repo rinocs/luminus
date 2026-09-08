@@ -1,0 +1,28 @@
+#!/usr/bin/env php
+<?php
+
+$autoloadFiles = [
+    getcwd() . '/vendor/autoload.php',
+    __DIR__ . '/../../../autoload.php',
+    __DIR__ . '/../../autoload.php',
+    __DIR__ . '/../vendor/autoload.php',
+];
+
+$loaded = false;
+foreach ($autoloadFiles as $file) {
+    if (file_exists($file)) {
+        require $file;
+        $loaded = true;
+        break;
+    }
+}
+
+if (!$loaded) {
+    fwrite(STDERR, "Error: Could not find vendor/autoload.php\n");
+    exit(1);
+}
+
+use Luminus\Breeze\Console\InstallCommand;
+
+$cmd = new InstallCommand();
+exit($cmd->handle($argv));

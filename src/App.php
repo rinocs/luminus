@@ -126,4 +126,18 @@ class App
         }
         return $this->config[$key] ?? $default;
     }
+
+    public function registerProviders(array $providers): void
+    {
+        $booting = [];
+        foreach ($providers as $providerClass) {
+            /** @var \Luminus\Providers\ServiceProvider $provider */
+            $provider = new $providerClass($this);
+            $provider->register();
+            $booting[] = $provider;
+        }
+        foreach ($booting as $provider) {
+            $provider->boot();
+        }
+    }
 }

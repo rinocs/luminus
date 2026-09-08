@@ -7,16 +7,19 @@ class Container
     private array $bindings = [];
     private array $instances = [];
     private array $resolving = [];
+    private array $singletons = [];
 
     public function set(string $id, mixed $resolver): void
     {
         $this->bindings[$id] = $resolver;
         unset($this->instances[$id]);
+        unset($this->singletons[$id]);
     }
 
     public function singleton(string $id, callable $resolver): void
     {
         $this->bindings[$id] = $resolver;
+        $this->singletons[$id] = true;
         unset($this->instances[$id]);
     }
 
@@ -44,7 +47,9 @@ class Container
             unset($this->resolving[$id]);
         }
 
-        $this->instances[$id] = $instance;
+        if (!isset($this->bindings[$id]) || isset($this->singletons[$id]) || !($this->bindings[$id] instanceof \Closure)) {
+            $this->instances[$id] = $instance;
+        }
         return $instance;
     }
 

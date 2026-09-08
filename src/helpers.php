@@ -36,6 +36,55 @@ if (!function_exists('e')) {
     }
 }
 
+// Compatibility polyfills for PHP < 8.4 array helper functions
+if (!function_exists('array_find')) {
+    function array_find(array $array, callable $callback): mixed
+    {
+        foreach ($array as $key => $value) {
+            if ($callback($value, $key)) {
+                return $value;
+            }
+        }
+        return null;
+    }
+}
+
+if (!function_exists('array_find_key')) {
+    function array_find_key(array $array, callable $callback): mixed
+    {
+        foreach ($array as $key => $value) {
+            if ($callback($value, $key)) {
+                return $key;
+            }
+        }
+        return null;
+    }
+}
+
+if (!function_exists('array_any')) {
+    function array_any(array $array, callable $callback): bool
+    {
+        foreach ($array as $key => $value) {
+            if ($callback($value, $key)) {
+                return true;
+            }
+        }
+        return false;
+    }
+}
+
+if (!function_exists('array_all')) {
+    function array_all(array $array, callable $callback): bool
+    {
+        foreach ($array as $key => $value) {
+            if (!$callback($value, $key)) {
+                return false;
+            }
+        }
+        return true;
+    }
+}
+
 if (!function_exists('csrf_token')) {
     /**
      * Get the active CSRF token.
