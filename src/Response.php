@@ -113,6 +113,17 @@ class Response
         bool $httpOnly = true,
         string $sameSite = 'Lax'
     ): static {
+        // Strip CR and LF characters from cookie string parameters to prevent HTTP response splitting (CRLF injection)
+        $name = str_replace(["\r", "\n"], '', $name);
+        $value = str_replace(["\r", "\n"], '', $value);
+        $path = str_replace(["\r", "\n"], '', $path);
+        $domain = str_replace(["\r", "\n"], '', $domain);
+        $sameSite = str_replace(["\r", "\n"], '', $sameSite);
+
+        if ($name === '') {
+            return $this;
+        }
+
         $this->cookies[$name] = [
             'name' => $name,
             'value' => $value,
