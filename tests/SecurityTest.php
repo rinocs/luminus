@@ -560,6 +560,85 @@ class SecurityTest extends TestCase
         $this->assertSame(1, Session::get($throttleKey . '_attempts'));
     }
 
+    public function test_register_rate_limiting(): void
+    {
+        $appMock = $this->createMock(\Luminus\App::class);
+        $viewMock = $this->createMock(\Luminus\View::class);
+        $dbMock = $this->createMock(\Luminus\Database::class);
+
+        $email = 'spamregister@example.com';
+        $throttleKey = 'register_throttle_' . md5($email);
+
+        $controller = new \Luminus\Breeze\Controllers\AuthController($appMock, $viewMock, $dbMock);
+
+        // Attempt 1 to 4: Failed validation or invalid request attempts
+        for ($i = 1; $i <= 4; $i++) {
+            $request = new Request(
+                body: [
+                    'name' => 'Spam User',
+                    'email' => $email,
+                    'password' => 'short', // invalid password length
+                    'password_confirmation' => 'short',
+                ],
+                server: ['REQUEST_METHOD' => 'POST']
+            );
+            $response = $controller->registerStore($request);
+            $this->assertSame(302, $response->getStatusCode());
+            $this->assertSame($i, Session::get($throttleKey . '_attempts'));
+            $this->assertNull(Session::get($throttleKey . '_locked_at'));
+        }
+
+        // Attempt 5: Reaches the limit, sets lockout
+        $request5 = new Request(
+            body: [
+                'name' => 'Spam User',
+                'email' => $email,
+                'password' => 'short',
+                'password_confirmation' => 'short',
+            ],
+            server: ['REQUEST_METHOD' => 'POST']
+        );
+        $response5 = $controller->registerStore($request5);
+        $this->assertSame(302, $response5->getStatusCode());
+        $this->assertSame(5, Session::get($throttleKey . '_attempts'));
+        $this->assertNotNull(Session::get($throttleKey . '_locked_at'));
+
+        // Attempt 6: Immediately blocked/throttled
+        $request6 = new Request(
+            body: [
+                'name' => 'Spam User',
+                'email' => $email,
+                'password' => 'validpassword123',
+                'password_confirmation' => 'validpassword123',
+            ],
+            server: ['REQUEST_METHOD' => 'POST']
+        );
+        $response6 = $controller->registerStore($request6);
+        $this->assertSame(302, $response6->getStatusCode());
+
+        $errors = Session::getFlash('errors', []);
+        $this->assertArrayHasKey('email', $errors);
+        $this->assertStringContainsString('Too many registration attempts', $errors['email']);
+
+        // Test lockout expiration bypass (e.g. simulating 61 seconds later)
+        Session::put($throttleKey . '_locked_at', time() - 61);
+
+        $request7 = new Request(
+            body: [
+                'name' => 'Spam User',
+                'email' => $email,
+                'password' => 'short',
+                'password_confirmation' => 'short',
+            ],
+            server: ['REQUEST_METHOD' => 'POST']
+        );
+        $response7 = $controller->registerStore($request7);
+        $this->assertSame(302, $response7->getStatusCode());
+
+        // The attempts counter should be reset back to 1
+        $this->assertSame(1, Session::get($throttleKey . '_attempts'));
+    }
+
     public function test_trusted_proxy_ssl_detection(): void
     {
         // 1. Unsecured request (no headers/ssl)
