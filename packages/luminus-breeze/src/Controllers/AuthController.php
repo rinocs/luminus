@@ -164,6 +164,22 @@ class AuthController
         $password = (string) $request->post('password');
         $passwordConfirmation = (string) $request->post('password_confirmation');
 
+        $throttleKey = 'register_throttle_' . md5($email !== '' ? $email : 'guest');
+        $lockedAt = Session::get($throttleKey . '_locked_at', 0);
+        $attempts = Session::get($throttleKey . '_attempts', 0);
+
+        if ($attempts >= 5) {
+            if ((time() - $lockedAt) < 60) {
+                $seconds = 60 - (time() - $lockedAt);
+                Session::flash('errors', ['email' => "Too many registration attempts. Please try again in {$seconds} seconds."]);
+                Session::flash('old', compact('name', 'email'));
+                return (new Response())->redirect('/register');
+            } else {
+                Session::forget($throttleKey . '_attempts');
+                Session::forget($throttleKey . '_locked_at');
+            }
+        }
+
         $errors = [];
 
         if ($name === '' || strlen($name) > 255) {
@@ -194,10 +210,19 @@ class AuthController
         }
 
         if (!empty($errors)) {
+            $attempts = Session::get($throttleKey . '_attempts', 0) + 1;
+            Session::put($throttleKey . '_attempts', $attempts);
+            if ($attempts >= 5) {
+                Session::put($throttleKey . '_locked_at', time());
+            }
+
             Session::flash('errors', $errors);
             Session::flash('old', compact('name', 'email'));
             return (new Response())->redirect('/register');
         }
+
+        Session::forget($throttleKey . '_attempts');
+        Session::forget($throttleKey . '_locked_at');
 
         $this->db->insert('users', [
             'name' => $name,
